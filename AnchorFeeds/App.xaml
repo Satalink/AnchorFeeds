@@ -1,0 +1,72 @@
+<Application x:Class="AnchorFeeds.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:AnchorFeeds">
+    <Application.Resources>
+        <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#FFF4F6F8" />
+        <SolidColorBrush x:Key="SurfaceBackgroundBrush" Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="ElevatedBackgroundBrush" Color="#FFF8F9FA" />
+        <SolidColorBrush x:Key="TextPrimaryBrush" Color="#FF20252B" />
+        <SolidColorBrush x:Key="TextSecondaryBrush" Color="#FF606B78" />
+        <SolidColorBrush x:Key="BorderBrush" Color="#FFE2E5E9" />
+        <SolidColorBrush x:Key="AccentBrush" Color="#FF2563A6" />
+        <SolidColorBrush x:Key="AccentTextBrush" Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="ImageBackgroundBrush" Color="#FFF3F5F7" />
+        <SolidColorBrush x:Key="ArticleTextBackgroundBrush" Color="#FFF8F9FA" />
+        <SolidColorBrush x:Key="ArticleTextForegroundBrush" Color="#FF38424D" />
+        <SolidColorBrush x:Key="SelectedBackgroundBrush" Color="#FFD5E5F5" />
+        <SolidColorBrush x:Key="MenuHoverBackgroundBrush" Color="#FF2563A6" />
+        <SolidColorBrush x:Key="MenuHoverTextBrush" Color="#FFFFFFFF" />
+
+        <Style TargetType="{x:Type Button}">
+            <Setter Property="Background" Value="{DynamicResource ElevatedBackgroundBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+        </Style>
+        <Style TargetType="{x:Type TextBox}">
+            <Setter Property="Background" Value="{DynamicResource SurfaceBackgroundBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="CaretBrush" Value="{DynamicResource TextPrimaryBrush}" />
+        </Style>
+        <Style TargetType="{x:Type ComboBox}">
+            <Setter Property="Background" Value="{DynamicResource SurfaceBackgroundBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+        </Style>
+        <Style TargetType="{x:Type ComboBoxItem}">
+            <Setter Property="Background" Value="{DynamicResource SurfaceBackgroundBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        </Style>
+        <Style TargetType="{x:Type ListBoxItem}">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        </Style>
+        <Style TargetType="{x:Type TreeView}">
+            <Setter Property="Background" Value="{DynamicResource SurfaceBackgroundBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+        </Style>
+        <Style TargetType="{x:Type TreeViewItem}">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        </Style>
+        <Style TargetType="{x:Type Menu}">
+            <Setter Property="Background" Value="{DynamicResource SurfaceBackgroundBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        </Style>
+        <Style TargetType="{x:Type MenuItem}">
+            <Setter Property="Background" Value="{DynamicResource SurfaceBackgroundBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Style.Triggers>
+                <Trigger Property="IsHighlighted" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource MenuHoverBackgroundBrush}" />
+                    <Setter Property="Foreground" Value="{DynamicResource MenuHoverTextBrush}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style TargetType="{x:Type ContextMenu}">
+            <Setter Property="Background" Value="{DynamicResource SurfaceBackgroundBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+        </Style>
+    </Application.Resources>
+</Application>

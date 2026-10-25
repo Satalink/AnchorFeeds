@@ -1,0 +1,27 @@
+feeds:
+- https://moxie.foxnews.com/google-publisher/latest.xml
+- https://www.redstate.com/feed/
+- https://www.thegatewaypundit.com/feed/
+max_articles_per_feed: 20
+output_dir: ./audio/_temp
+final_output: ./audio/{feed}_{title}/
+retention: 3 days
+mark_as_played: when_ended_or_skipped
+playback_speed: 1.1
+scan_mode: true
+scan_countdown_seconds: 7
+auto_play_next: true
+retrieve_latest_feeds_on_launch: true
+show_article_text: true
+unplayed_only: true
+starred_only: false
+article_sort_order: newest_first
+group_articles_by_feed: false
+application_language: system
+appearance_theme: dark
+mp3_bitrate_kbps: 0
+article_list_width_ratio: 0.3084
+voices:
+  anchor_voices:
+  - en-US-GuyNeural
+  - en-US-JennyNeural

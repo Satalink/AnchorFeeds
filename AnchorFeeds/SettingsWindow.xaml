@@ -1,0 +1,283 @@
+<Window x:Class="AnchorFeeds.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:models="clr-namespace:AnchorFeeds.Models"
+    Title="AnchorFeeds Settings" Height="860" Width="700" MinHeight="650" MinWidth="540"
+    WindowStartupLocation="CenterOwner" ResizeMode="CanResizeWithGrip" Loaded="Window_Loaded"
+    Background="{DynamicResource WindowBackgroundBrush}"
+    Foreground="{DynamicResource TextPrimaryBrush}">
+    <Window.Resources>
+        <Style x:Key="HelpButtonStyle" TargetType="Button">
+            <Setter Property="Content" Value="(?)" />
+            <Setter Property="Padding" Value="3,0" />
+            <Setter Property="Margin" Value="6,0,0,0" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="Cursor" Value="Help" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <EventSetter Event="Click" Handler="SettingHelpButton_Click" />
+        </Style>
+    </Window.Resources>
+    <DockPanel Margin="16">
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="Cancel" IsCancel="True" Padding="18,7" Margin="0,0,8,0" />
+            <Button x:Name="SaveButton" Content="Save" IsDefault="True" Padding="18,7" Click="SaveButton_Click" />
+        </StackPanel>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <Expander Header="General" IsExpanded="True" Margin="0,0,0,8">
+                    <StackPanel Margin="12,8,8,4">
+                        <TextBlock Text="Application Language / Locale" FontWeight="SemiBold" />
+                        <ComboBox x:Name="ApplicationLanguageComboBox" Margin="0,4,0,8">
+                            <ComboBoxItem Content="System default" Tag="system" />
+                            <ComboBoxItem Content="English" Tag="en" />
+                            <ComboBoxItem Content="Čeština" Tag="cs" />
+                            <ComboBoxItem Content="Deutsch" Tag="de" />
+                            <ComboBoxItem Content="Español" Tag="es" />
+                            <ComboBoxItem Content="Français" Tag="fr" />
+                            <ComboBoxItem Content="Italiano" Tag="it" />
+                            <ComboBoxItem Content="日本語" Tag="ja" />
+                            <ComboBoxItem Content="한국어" Tag="ko" />
+                            <ComboBoxItem Content="Polski" Tag="pl" />
+                            <ComboBoxItem Content="Português (Brasil)" Tag="pt-BR" />
+                            <ComboBoxItem Content="Русский" Tag="ru" />
+                            <ComboBoxItem Content="Türkçe" Tag="tr" />
+                            <ComboBoxItem Content="简体中文" Tag="zh-Hans" />
+                            <ComboBoxItem Content="繁體中文" Tag="zh-Hant" />
+                        </ComboBox>
+                        <TextBlock Text="Application language changes take effect the next time you start the application."
+                                   Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                        <CheckBox x:Name="RetrieveLatestFeedsOnLaunchCheckBox"
+                                  Content="Retrieve latest feeds on application launch"
+                                  IsChecked="True" Margin="0,12,0,4" />
+                    </StackPanel>
+                </Expander>
+
+                <Expander Header="Appearance" IsExpanded="False" Margin="0,0,0,8">
+                    <StackPanel Margin="12,8,8,8">
+                        <TextBlock Text="Theme" FontWeight="SemiBold" />
+                        <ComboBox x:Name="AppearanceThemeComboBox" Margin="0,4,0,8">
+                            <ComboBoxItem Content="Light" Tag="light" />
+                            <ComboBoxItem Content="Dark" Tag="dark" />
+                            <ComboBoxItem Content="Charcoal" Tag="charcoal" />
+                            <ComboBoxItem Content="System Desktop Theme" Tag="system_desktop" />
+                        </ComboBox>
+                        <TextBlock Text="System Desktop Theme follows the Windows light/dark app setting and uses Windows system colors for text, controls, and selection. The theme is applied when you save settings."
+                                   Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Expander>
+
+                <Expander Header="Feeds" IsExpanded="False" Margin="0,0,0,8">
+                    <StackPanel Margin="12,8,8,4">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="RSS or Atom feeds (one URL per line)" FontWeight="SemiBold" />
+                            <Button Style="{StaticResource HelpButtonStyle}"
+                                    ToolTip="Add one RSS or Atom feed URL on each line. The app checks these feeds when you choose Retrieve Latest Feeds." />
+                        </StackPanel>
+                        <TextBox x:Name="FeedsTextBox" AcceptsReturn="True" TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto" MinHeight="96" Margin="0,4,0,12" />
+
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Maximum new articles per feed" FontWeight="SemiBold" />
+                            <Button Style="{StaticResource HelpButtonStyle}"
+                                    ToolTip="Upper limit of newly generated articles from each feed during one retrieval. Existing audio files are skipped and do not count toward this limit." />
+                        </StackPanel>
+                        <TextBox x:Name="MaxArticlesTextBox" Margin="0,4,0,4" />
+                    </StackPanel>
+                </Expander>
+
+                <Expander Header="Paths" IsExpanded="False" Margin="0,0,0,8">
+                    <StackPanel Margin="12,8,8,4">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Temporary output directory" FontWeight="SemiBold" />
+                            <Button Style="{StaticResource HelpButtonStyle}"
+                                    ToolTip="Folder for temporary files created during audio generation. Relative paths are resolved from the application folder. Example: ./newscast_temp." />
+                        </StackPanel>
+                        <TextBox x:Name="OutputDirectoryTextBox" Margin="0,4,0,12" />
+
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Article media output path" FontWeight="SemiBold" />
+                            <Button Style="{StaticResource HelpButtonStyle}"
+                                    ToolTip="Folder path template for each article's media. Put {feed} and {title} in the folder name; title.mp3, body.mp3, and any cached image are stored there. Example: ./audio/{feed}_{title}/. Relative paths are based on the application folder." />
+                        </StackPanel>
+                        <TextBox x:Name="FinalOutputTextBox" Margin="0,4,0,4" />
+                    </StackPanel>
+                </Expander>
+
+                <Expander Header="Audio" IsExpanded="False" Margin="0,0,0,8">
+                  <StackPanel Margin="12,8,8,4">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Scan mode countdown" FontWeight="SemiBold" />
+                        <Button Style="{StaticResource HelpButtonStyle}"
+                                ToolTip="In Scan mode, the app plays the article title, shows this countdown, then advances to the next item. Full mode plays the article body after the title." />
+                    </StackPanel>
+                    <ComboBox x:Name="ScanCountdownComboBox" Margin="0,4,0,12">
+                        <ComboBoxItem Content="3 seconds" Tag="3" />
+                        <ComboBoxItem Content="5 seconds" Tag="5" />
+                        <ComboBoxItem Content="7 seconds" Tag="7" />
+                        <ComboBoxItem Content="10 seconds" Tag="10" />
+                        <ComboBoxItem Content="15 seconds" Tag="15" />
+                        <ComboBoxItem Content="20 seconds" Tag="20" />
+                        <ComboBoxItem Content="30 seconds" Tag="30" />
+                        <ComboBoxItem Content="60 seconds" Tag="60" />
+                    </ComboBox>
+
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Audio retention" FontWeight="SemiBold" />
+                        <Button Style="{StaticResource HelpButtonStyle}"
+                                ToolTip="How long generated article MP3s are kept before the library removes them. Enter a positive number and hours, days, or weeks: 12 hours, 3 days, or 2 weeks. Expiration is checked when the library loads or refreshes." />
+                    </StackPanel>
+                    <TextBox x:Name="RetentionTextBox" Margin="0,4,0,12" />
+
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="MP3 bitrate" FontWeight="SemiBold" />
+                        <Button Style="{StaticResource HelpButtonStyle}"
+                                ToolTip="Default uses Edge TTS's native 24 kHz, 48 kbps mono MP3 without FFmpeg. 48 kbps also uses this native output. Choose 96-320 kbps to re-encode with FFmpeg; higher bitrates increase file size but cannot restore detail absent from the source. The page-turn cue plays in the app between articles and is not included in MP3 files." />
+                    </StackPanel>
+                    <ComboBox x:Name="Mp3BitrateComboBox" Margin="0,4,0,12">
+                        <ComboBoxItem Content="Default" Tag="0" />
+                        <ComboBoxItem Content="48 kbps (Edge TTS)" Tag="48" />
+                        <ComboBoxItem Content="96 kbps" Tag="96" />
+                        <ComboBoxItem Content="128 kbps" Tag="128" />
+                        <ComboBoxItem Content="160 kbps" Tag="160" />
+                        <ComboBoxItem Content="192 kbps" Tag="192" />
+                        <ComboBoxItem Content="256 kbps" Tag="256" />
+                        <ComboBoxItem Content="320 kbps" Tag="320" />
+                    </ComboBox>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <CheckBox x:Name="AutoPlayNextCheckBox" Content="Auto Play Next" />
+                        <Button Style="{StaticResource HelpButtonStyle}"
+                                ToolTip="Automatically start the next article when the current article finishes. Playback stops at the end of the library." />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <CheckBox x:Name="ShowArticleTextCheckBox" Content="Show article text in player view" />
+                        <Button Style="{StaticResource HelpButtonStyle}"
+                                ToolTip="Shows or hides the text used to create the selected article's narration in the player view." />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <CheckBox x:Name="ShowUnplayedOnlyCheckBox" Content="Enable Unplayed only when the app starts" />
+                        <Button Style="{StaticResource HelpButtonStyle}"
+                                ToolTip="Starts the main window with its Unplayed only filter turned on. You can change the filter at any time." />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Mark article as played" FontWeight="SemiBold" />
+                        <Button Style="{StaticResource HelpButtonStyle}"
+                                ToolTip="Choose when an article changes to played: as soon as playback starts, or after playback ends or you skip to another article." />
+                    </StackPanel>
+                    <ComboBox x:Name="MarkAsPlayedComboBox" Margin="0,4,0,12">
+                        <ComboBoxItem Content="When started" Tag="when_started" />
+                        <ComboBoxItem Content="When ended or skipped" Tag="when_ended_or_skipped" />
+                    </ComboBox>
+
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Anchor(s) (select multiple voices)" FontWeight="SemiBold" />
+                        <Button Style="{StaticResource HelpButtonStyle}"
+                                ToolTip="Check one or more voices. Newly generated articles rotate through the selected voices. Expand a language/country group to browse voices; use Sample to preview a voice. Voice synthesis requires an internet connection." />
+                    </StackPanel>
+                    <TreeView x:Name="VoicesTreeView" Height="280" Margin="0,4,0,4">
+                    <TreeView.ItemContainerStyle>
+                        <Style TargetType="TreeViewItem">
+                            <Setter Property="IsExpanded" Value="{Binding IsExpanded}" />
+                        </Style>
+                    </TreeView.ItemContainerStyle>
+                    <TreeView.Resources>
+                        <HierarchicalDataTemplate DataType="{x:Type models:VoiceLocaleGroup}"
+                                                  ItemsSource="{Binding Voices}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding DisplayName}" />
+                                <TextBlock Text="{Binding Locale}" Foreground="{DynamicResource TextSecondaryBrush}" Margin="8,0,0,0" />
+                            </StackPanel>
+                        </HierarchicalDataTemplate>
+                        <DataTemplate DataType="{x:Type models:VoiceOption}">
+                            <DataTemplate.Resources>
+                                <Storyboard x:Key="SpinSampleIcon" RepeatBehavior="Forever">
+                                    <DoubleAnimation Storyboard.TargetName="LoadingIcon"
+                                                     Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                     From="0" To="360" Duration="0:0:0.8" />
+                                </Storyboard>
+                            </DataTemplate.Resources>
+                            <DockPanel LastChildFill="True">
+                                <Button Tag="{Binding}" DockPanel.Dock="Right" Padding="6,2" Margin="8,0,0,0"
+                                        Click="VoiceSampleButton_Click">
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="Background" Value="{DynamicResource {x:Static SystemColors.ControlBrushKey}}" />
+                                            <Setter Property="BorderBrush" Value="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" />
+                                            <Setter Property="BorderThickness" Value="1" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsPlaying}" Value="True">
+                                                    <Setter Property="Background" Value="{DynamicResource SelectedBackgroundBrush}" />
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                                    <Setter Property="BorderThickness" Value="2" />
+                                                    <Setter Property="Effect">
+                                                        <Setter.Value>
+                                                            <DropShadowEffect BlurRadius="5" ShadowDepth="2" Opacity="0.35" />
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                    <Grid>
+                                        <StackPanel x:Name="SampleLabel" Orientation="Horizontal">
+                                            <TextBlock Text="▶" Margin="0,0,4,0" />
+                                            <TextBlock Text="Sample" />
+                                        </StackPanel>
+                                        <StackPanel x:Name="LoadingLabel" Orientation="Horizontal" Visibility="Collapsed">
+                                            <TextBlock x:Name="LoadingIcon" Text="⟳" Margin="0,0,4,0"
+                                                       RenderTransformOrigin="0.5,0.5">
+                                                <TextBlock.RenderTransform>
+                                                    <RotateTransform />
+                                                </TextBlock.RenderTransform>
+                                            </TextBlock>
+                                            <TextBlock Text="Loading..." />
+                                        </StackPanel>
+                                        <StackPanel x:Name="PlayingLabel" Orientation="Horizontal" Visibility="Collapsed">
+                                            <TextBlock Text="▶" Margin="0,0,4,0" />
+                                            <TextBlock Text="Playing" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Button>
+                                <CheckBox Content="{Binding Name}" IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                          VerticalAlignment="Center" />
+                            </DockPanel>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding IsLoading}" Value="True">
+                                    <Setter TargetName="SampleLabel" Property="Visibility" Value="Collapsed" />
+                                    <Setter TargetName="LoadingLabel" Property="Visibility" Value="Visible" />
+                                    <DataTrigger.EnterActions>
+                                        <BeginStoryboard x:Name="BeginSampleIconSpin"
+                                                         Storyboard="{StaticResource SpinSampleIcon}" />
+                                    </DataTrigger.EnterActions>
+                                    <DataTrigger.ExitActions>
+                                        <StopStoryboard BeginStoryboardName="BeginSampleIconSpin" />
+                                    </DataTrigger.ExitActions>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsPlaying}" Value="True">
+                                    <Setter TargetName="SampleLabel" Property="Visibility" Value="Collapsed" />
+                                    <Setter TargetName="PlayingLabel" Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </TreeView.Resources>
+                    </TreeView>
+                    <DockPanel Margin="0,0,0,12">
+                        <Button x:Name="StopVoiceSampleButton" Content="Stop sample" DockPanel.Dock="Right"
+                                Padding="8,3" IsEnabled="False" Click="StopVoiceSampleButton_Click" />
+                        <TextBlock x:Name="VoiceCatalogStatus" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}"
+                                   VerticalAlignment="Center" Margin="0,0,8,0" />
+                    </DockPanel>
+                    <MediaElement x:Name="VoiceSamplePlayer" Width="1" Height="1" Opacity="0"
+                                  LoadedBehavior="Manual" UnloadedBehavior="Stop"
+                                  MediaOpened="VoiceSamplePlayer_MediaOpened"
+                                  MediaEnded="VoiceSamplePlayer_MediaEnded"
+                                  MediaFailed="VoiceSamplePlayer_MediaFailed" />
+                  </StackPanel>
+                </Expander>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</Window>
