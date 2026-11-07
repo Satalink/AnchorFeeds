@@ -2,25 +2,30 @@ feeds:
 - https://moxie.foxnews.com/google-publisher/latest.xml
 - https://www.redstate.com/feed/
 - https://www.thegatewaypundit.com/feed/
-max_articles_per_feed: 20
-output_dir: ./audio/_temp
-final_output: ./audio/{feed}_{title}/
-retention: 3 days
+output_dir: C:\Scripts\ai-newscast\AnchorFeeds\bin\Release\net10.0-windows\win-x64\publish\audio
+final_output: C:\Scripts\ai-newscast\AnchorFeeds\bin\Release\net10.0-windows\win-x64\publish\audio\{feed}_{title}\
+retention: 12 Hours
+feed_update_interval: 15 minutes
 mark_as_played: when_ended_or_skipped
-playback_speed: 1.1
 scan_mode: true
-scan_countdown_seconds: 7
+scan_countdown_seconds: 3
 auto_play_next: true
 retrieve_latest_feeds_on_launch: true
+minimize_to_tray: false
+close_to_tray: true
+launch_at_startup: true
+debug_logging: false
 show_article_text: true
 unplayed_only: true
 starred_only: false
 article_sort_order: newest_first
 group_articles_by_feed: false
 application_language: system
-appearance_theme: dark
+appearance_theme: system_desktop
 mp3_bitrate_kbps: 0
-article_list_width_ratio: 0.3084
+tts_engine: edge_tts
+article_list_width_ratio: 0.32839070253329855
+article_image_height_ratio: 0.6473830654458259
 voices:
   anchor_voices:
   - en-US-GuyNeural

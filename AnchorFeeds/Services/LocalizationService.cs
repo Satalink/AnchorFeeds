@@ -29,7 +29,7 @@ public static class LocalizationService
         "Drag to resize the article list and player", "Select an article to listen",
         "Star article", "Article text", "Open article in browser", "Play", "Pause",
         "Next / Skip", "Cancel", "Save", "Feeds", "RSS or Atom feeds (one URL per line)",
-        "Maximum new articles per feed", "Paths", "Temporary output directory",
+        "Maximum new articles per feed", "Paths", "Media output directory",
         "Article audio filename template", "Audio", "Audio retention", "MP3 bitrate",
         "Show article text in player view", "Enable Unplayed only when the app starts",
         "Anchor(s) (select multiple voices)", "Sample", "Loading...", "Playing",
@@ -49,7 +49,7 @@ public static class LocalizationService
             "Tažením změňte velikost seznamu článků a přehrávače", "Vyberte článek k poslechu",
             "Označit článek hvězdičkou", "Text článku", "Otevřít článek v prohlížeči", "Přehrát", "Pozastavit",
             "Další / přeskočit", "Zrušit", "Uložit", "Kanály", "RSS nebo Atom kanály (jedna adresa na řádek)",
-            "Maximum nových článků na kanál", "Cesty", "Dočasná výstupní složka",
+            "Maximum nových článků na kanál", "Cesty", "Složka pro výstup médií",
             "Šablona názvu zvukového souboru", "Zvuk", "Uchovávání zvuku", "Datový tok MP3",
             "Zobrazit text článku v přehrávači", "Při spuštění zapnout filtr nepřehraných",
             "Moderátor(ři) (vyberte více hlasů)", "Ukázka", "Načítání...", "Přehrávání",
@@ -66,7 +66,7 @@ public static class LocalizationService
             "Ziehen, um Artikelliste und Player anzupassen", "Artikel zum Anhören auswählen",
             "Artikel markieren", "Artikeltext", "Artikel im Browser öffnen", "Wiedergabe", "Pause",
             "Weiter / Überspringen", "Abbrechen", "Speichern", "Feeds", "RSS- oder Atom-Feeds (eine URL pro Zeile)",
-            "Maximale neue Artikel pro Feed", "Pfade", "Temporärer Ausgabeordner",
+            "Maximale neue Artikel pro Feed", "Pfade", "Medienausgabeordner",
             "Dateinamenvorlage für Artikelaudio", "Audio", "Audiospeicherdauer", "MP3-Bitrate",
             "Artikeltext im Player anzeigen", "Beim Start „Nur ungelesene“ aktivieren",
             "Sprecher (mehrere Stimmen auswählen)", "Probe", "Wird geladen...", "Wiedergabe",
@@ -83,7 +83,7 @@ public static class LocalizationService
             "Arrastre para cambiar el tamaño de la lista y el reproductor", "Seleccione un artículo para escuchar",
             "Marcar artículo", "Texto del artículo", "Abrir artículo en el navegador", "Reproducir", "Pausar",
             "Siguiente / Saltar", "Cancelar", "Guardar", "Fuentes", "Fuentes RSS o Atom (una URL por línea)",
-            "Máximo de artículos nuevos por fuente", "Rutas", "Carpeta temporal de salida",
+            "Máximo de artículos nuevos por fuente", "Rutas", "Carpeta de salida de medios",
             "Plantilla del nombre de archivo de audio", "Audio", "Retención de audio", "Tasa de bits MP3",
             "Mostrar texto del artículo en el reproductor", "Activar «Solo no reproducidos» al iniciar",
             "Voz/ces (seleccione varias)", "Muestra", "Cargando...", "Reproduciendo",
@@ -100,7 +100,7 @@ public static class LocalizationService
             "Faites glisser pour redimensionner la liste et le lecteur", "Sélectionnez un article à écouter",
             "Ajouter une étoile", "Texte de l’article", "Ouvrir l’article dans le navigateur", "Lire", "Pause",
             "Suivant / Passer", "Annuler", "Enregistrer", "Flux", "Flux RSS ou Atom (une URL par ligne)",
-            "Nombre maximal de nouveaux articles par flux", "Chemins", "Dossier de sortie temporaire",
+            "Nombre maximal de nouveaux articles par flux", "Chemins", "Dossier de sortie des médias",
             "Modèle du nom de fichier audio", "Audio", "Durée de conservation audio", "Débit MP3",
             "Afficher le texte de l’article dans le lecteur", "Activer « Non lus uniquement » au démarrage",
             "Voix (sélection multiple)", "Écouter", "Chargement...", "Lecture",
@@ -117,7 +117,7 @@ public static class LocalizationService
             "Trascina per ridimensionare elenco e lettore", "Seleziona un articolo da ascoltare",
             "Aggiungi stella", "Testo dell’articolo", "Apri articolo nel browser", "Riproduci", "Pausa",
             "Avanti / Salta", "Annulla", "Salva", "Feed", "Feed RSS o Atom (un URL per riga)",
-            "Massimo di nuovi articoli per feed", "Percorsi", "Cartella di output temporanea",
+            "Massimo di nuovi articoli per feed", "Percorsi", "Cartella di output dei media",
             "Modello nome file audio", "Audio", "Conservazione audio", "Bitrate MP3",
             "Mostra testo articolo nel lettore", "Attiva «Solo non riprodotti» all’avvio",
             "Voci (seleziona più voci)", "Ascolta", "Caricamento...", "In riproduzione",
@@ -134,7 +134,7 @@ public static class LocalizationService
             "ドラッグして記事一覧とプレーヤーの幅を変更", "再生する記事を選択",
             "記事にスターを付ける", "記事テキスト", "ブラウザーで記事を開く", "再生", "一時停止",
             "次へ / スキップ", "キャンセル", "保存", "フィード",             "RSS または Atom フィード（1行に1つのURL）",
-            "フィードごとの新規記事の最大数", "パス", "一時出力フォルダー",
+            "フィードごとの新規記事の最大数", "パス", "メディア出力フォルダー",
             "記事音声ファイル名テンプレート", "オーディオ", "音声の保存期間", "MP3ビットレート",
             "プレーヤーに記事テキストを表示", "起動時に「未再生のみ」を有効にする",
             "アンカー（複数の音声を選択）", "サンプル", "読み込み中...", "再生中",
@@ -151,7 +151,7 @@ public static class LocalizationService
             "끌어서 기사 목록과 플레이어 크기 조정", "들을 기사를 선택하세요",
             "기사 별표", "기사 텍스트", "브라우저에서 기사 열기", "재생", "일시 정지",
             "다음 / 건너뛰기", "취소", "저장", "피드", "RSS 또는 Atom 피드 (한 줄에 URL 하나)",
-            "피드당 새 기사 최대 개수", "경로", "임시 출력 폴더",
+            "피드당 새 기사 최대 개수", "경로", "미디어 출력 폴더",
             "기사 오디오 파일 이름 템플릿", "오디오", "오디오 보관 기간", "MP3 비트 전송률",
             "플레이어에 기사 텍스트 표시", "시작할 때 ‘재생 안 함만’ 사용",
             "앵커 (여러 음성 선택)", "샘플", "불러오는 중...", "재생 중",
@@ -168,7 +168,7 @@ public static class LocalizationService
             "Przeciągnij, aby zmienić szerokość listy i odtwarzacza", "Wybierz artykuł do odsłuchania",
             "Dodaj gwiazdkę", "Tekst artykułu", "Otwórz artykuł w przeglądarce", "Odtwórz", "Wstrzymaj",
             "Dalej / Pomiń", "Anuluj", "Zapisz", "Kanały", "Kanały RSS lub Atom (jeden adres URL w wierszu)",
-            "Maksymalna liczba nowych artykułów na kanał", "Ścieżki", "Tymczasowy folder wyjściowy",
+            "Maksymalna liczba nowych artykułów na kanał", "Ścieżki", "Folder wyjściowy mediów",
             "Szablon nazwy pliku audio", "Audio", "Czas przechowywania audio", "Przepływność MP3",
             "Pokaż tekst artykułu w odtwarzaczu", "Włącz filtr nieodtworzonych przy uruchomieniu",
             "Głosy (wybierz wiele)", "Próbka", "Ładowanie...", "Odtwarzanie",
@@ -185,7 +185,7 @@ public static class LocalizationService
             "Arraste para redimensionar a lista e o player", "Selecione um artigo para ouvir",
             "Marcar artigo", "Texto do artigo", "Abrir artigo no navegador", "Reproduzir", "Pausar",
             "Próximo / Pular", "Cancelar", "Salvar", "Feeds", "Feeds RSS ou Atom (uma URL por linha)",
-            "Máximo de novos artigos por feed", "Caminhos", "Pasta temporária de saída",
+            "Máximo de novos artigos por feed", "Caminhos", "Pasta de saída de mídia",
             "Modelo do nome do arquivo de áudio", "Áudio", "Retenção de áudio", "Taxa de bits MP3",
             "Mostrar texto do artigo no player", "Ativar «Somente não reproduzidos» ao iniciar",
             "Vozes (selecione várias)", "Amostra", "Carregando...", "Reproduzindo",
@@ -202,7 +202,7 @@ public static class LocalizationService
             "Перетащите, чтобы изменить размер списка и проигрывателя", "Выберите статью для прослушивания",
             "Добавить звезду", "Текст статьи", "Открыть статью в браузере", "Воспроизвести", "Пауза",
             "Далее / Пропустить", "Отмена", "Сохранить", "Ленты", "RSS- или Atom-ленты (по одному URL в строке)",
-            "Максимум новых статей на ленту", "Пути", "Временная папка вывода",
+            "Максимум новых статей на ленту", "Пути", "Папка вывода медиа",
             "Шаблон имени аудиофайла", "Аудио", "Срок хранения аудио", "Битрейт MP3",
             "Показывать текст статьи в проигрывателе", "Включать фильтр непрослушанных при запуске",
             "Дикторы (можно выбрать несколько)", "Образец", "Загрузка...", "Воспроизведение",
@@ -219,7 +219,7 @@ public static class LocalizationService
             "Listeyi ve oynatıcıyı yeniden boyutlandırmak için sürükleyin", "Dinlemek için bir makale seçin",
             "Makaleyi yıldızla", "Makale metni", "Makaleyi tarayıcıda aç", "Oynat", "Duraklat",
             "Sonraki / Atla", "İptal", "Kaydet", "Akışlar", "RSS veya Atom akışları (her satıra bir URL)",
-            "Akış başına en fazla yeni makale", "Yollar", "Geçici çıktı klasörü",
+            "Akış başına en fazla yeni makale", "Yollar", "Medya çıktı klasörü",
             "Makale ses dosyası adı şablonu", "Ses", "Ses saklama süresi", "MP3 bit hızı",
             "Oynatıcıda makale metnini göster", "Başlangıçta yalnızca oynatılmayanları etkinleştir",
             "Sunucular (birden fazla ses seçin)", "Örnek", "Yükleniyor...", "Oynatılıyor",
@@ -236,7 +236,7 @@ public static class LocalizationService
             "拖动以调整文章列表和播放器大小", "选择要收听的文章",
             "收藏文章", "文章文本", "在浏览器中打开文章", "播放", "暂停",
             "下一篇 / 跳过", "取消", "保存", "订阅源", "RSS 或 Atom 订阅源（每行一个 URL）",
-            "每个订阅源的新增文章上限", "路径", "临时输出文件夹",
+            "每个订阅源的新增文章上限", "路径", "媒体输出文件夹",
             "文章音频文件名模板", "音频", "音频保留时间", "MP3 比特率",
             "在播放器中显示文章文本", "启动时启用“仅未播放”",
             "主播（可选择多个语音）", "试听", "正在加载...", "正在播放",
@@ -253,7 +253,7 @@ public static class LocalizationService
             "拖曳以調整文章清單和播放器大小", "選取要聆聽的文章",
             "為文章加星號", "文章文字", "在瀏覽器中開啟文章", "播放", "暫停",
             "下一篇 / 略過", "取消", "儲存", "動態消息", "RSS 或 Atom 動態消息（每行一個 URL）",
-            "每個動態消息的新增文章上限", "路徑", "暫存輸出資料夾",
+            "每個動態消息的新增文章上限", "路徑", "媒體輸出資料夾",
             "文章音訊檔名範本", "音訊", "音訊保留時間", "MP3 位元率",
             "在播放器中顯示文章文字", "啟動時啟用「僅未播放」",
             "主播（可選取多個語音）", "試聽", "載入中...", "播放中",
@@ -392,6 +392,7 @@ public static class LocalizationService
         result["Oldest First ↑"] = SortMenuTranslations[language][5];
         result["Group by Feed"] = SortMenuTranslations[language][6];
         result["Starred only"] = SortMenuTranslations[language][7];
+        result["Favorites"] = FavoriteCategoryFilterTranslations[language];
         return result;
     }
 
@@ -504,6 +505,24 @@ public static class LocalizationService
             ["tr"] = ["Sırala", "Sıralama ölçütü", "Alfabetik (A–Z) ↑", "Ters alfabetik (Z–A) ↓", "En yeni önce ↓", "En eski önce ↑", "Akışa göre grupla", "Yalnızca yıldızlılar"],
             ["zh-Hans"] = ["排序", "排序方式", "按字母排序 (A–Z) ↑", "按字母逆序 (Z–A) ↓", "最新优先 ↓", "最旧优先 ↑", "按订阅源分组", "仅收藏"],
             ["zh-Hant"] = ["排序", "排序方式", "按字母排序 (A–Z) ↑", "按字母逆序 (Z–A) ↓", "最新優先 ↓", "最舊優先 ↑", "按動態分組", "僅顯示星號項目"]
+        };
+
+    private static readonly IReadOnlyDictionary<string, string> FavoriteCategoryFilterTranslations =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["cs"] = "Oblíbené kategorie",
+            ["de"] = "Favoriten",
+            ["es"] = "Favoritos",
+            ["fr"] = "Catégories favorites",
+            ["it"] = "Categorie preferite",
+            ["ja"] = "お気に入りカテゴリ",
+            ["ko"] = "즐겨찾는 카테고리",
+            ["pl"] = "Ulubione kategorie",
+            ["pt-BR"] = "Categorias favoritas",
+            ["ru"] = "Избранные категории",
+            ["tr"] = "Favori kategoriler",
+            ["zh-Hans"] = "收藏类别",
+            ["zh-Hant"] = "收藏類別"
         };
 
     private static string GetLanguageCode(CultureInfo culture)

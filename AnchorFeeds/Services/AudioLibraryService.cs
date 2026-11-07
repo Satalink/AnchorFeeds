@@ -6,6 +6,8 @@ namespace AnchorFeeds.Services;
 
 public sealed class AudioLibraryService
 {
+    public const string ErrorMarkerFileName = "body.error.txt";
+
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
     private readonly AppSettings _settings;
     private readonly string _outputDirectory;
@@ -17,15 +19,15 @@ public sealed class AudioLibraryService
     public AudioLibraryService(AppSettings settings, string applicationDirectory)
     {
         _settings = settings;
-        _outputDirectory = ArticleFileNaming.ResolveOutputDirectory(applicationDirectory, settings.FinalOutput);
+        _outputDirectory = ArticleFileNaming.ResolveOutputDirectory(applicationDirectory, settings.OutputDirectory);
         _filenameRegex = ArticleFileNaming.BuildFilenameRegex(
-            ArticleFileNaming.GetLegacyFilenameTemplate(settings.FinalOutput));
+            ArticleFileNaming.GetLegacyFilenameTemplate());
         _articleFolderRegex = ArticleFileNaming.BuildFilenameRegex(
-            ArticleFileNaming.GetArticleFolderTemplate(settings.FinalOutput));
+            ArticleFileNaming.GetArticleFolderTemplate());
 
         var stateDirectory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "AiNewscast");
+            "anchorfeeds");
         Directory.CreateDirectory(stateDirectory);
         _statePath = Path.Combine(stateDirectory, "library-state.json");
         _savedEntries = LoadSavedEntries();
@@ -40,10 +42,51 @@ public sealed class AudioLibraryService
         Refresh(removeExpiredFiles: true);
     }
 
-    public void Rebuild()
+    public int Rebuild()
     {
+        Directory.CreateDirectory(_outputDirectory);
+        var removedCount = 0;
+
+        foreach (var articleFolder in Directory.EnumerateDirectories(_outputDirectory).ToList())
+        {
+            if (!_articleFolderRegex.IsMatch(Path.GetFileName(articleFolder)))
+            {
+                continue;
+            }
+
+            Directory.Delete(articleFolder, recursive: true);
+            removedCount++;
+        }
+
+        foreach (var audioFile in Directory.EnumerateFiles(_outputDirectory).ToList())
+        {
+            var fileName = Path.GetFileName(audioFile);
+            if (!_filenameRegex.IsMatch(fileName) ||
+                !Path.GetExtension(fileName).Equals(".mp3", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            File.Delete(audioFile);
+            var mediaFolder = Path.Combine(_outputDirectory, Path.GetFileNameWithoutExtension(audioFile));
+            if (_articleFolderRegex.IsMatch(Path.GetFileName(mediaFolder)) && Directory.Exists(mediaFolder))
+            {
+                Directory.Delete(mediaFolder, recursive: true);
+            }
+            removedCount++;
+        }
+
+        Items.Clear();
         _savedEntries.Clear();
+        Save();
+        return removedCount;
+    }
+
+    public int Prune()
+    {
+        var removed = RemoveExpiredFiles();
         Refresh(removeExpiredFiles: false);
+        return removed;
     }
 
     private void Refresh(bool removeExpiredFiles)
@@ -86,24 +129,38 @@ public sealed class AudioLibraryService
             {
                 feed = ArticleFileNaming.ReadableSlug(match.Groups["feed"].Value);
             }
+            var feedConfiguration = FindFeedConfiguration(saved?.FeedUrl, feed);
+            var errorMarkerPath = Path.Combine(articleFolder, ErrorMarkerFileName);
+            var audioError = !File.Exists(fullPath) && File.Exists(errorMarkerPath)
+                ? File.ReadAllText(errorMarkerPath).Trim()
+                : string.Empty;
 
             existing[fullPath] = new ArticleAudio
             {
                 FilePath = fullPath,
                 TitleAudioPath = File.Exists(titlePath) ? titlePath : string.Empty,
+                TitleAudioEngine = saved?.TitleAudioEngine ?? string.Empty,
+                BodyAudioEngine = saved?.BodyAudioEngine ?? string.Empty,
+                Categories = saved?.Categories ?? [],
                 CachedImagePath = cachedImagePath ?? string.Empty,
                 ArticleFolderPath = articleFolder,
                 Title = title,
                 Feed = feed,
+                FeedName = feedConfiguration?.Name ?? saved?.FeedName ?? string.Empty,
+                FeedUrl = feedConfiguration?.Url ?? saved?.FeedUrl ?? string.Empty,
                 ArticleUrl = saved?.ArticleUrl ?? string.Empty,
                 ImageUrl = saved?.ImageUrl ?? string.Empty,
                 SourceLogoUrl = saved?.SourceLogoUrl ?? string.Empty,
                 AudioText = saved?.AudioText ?? string.Empty,
+                ArticleContentHtml = saved?.ArticleContentHtml ?? string.Empty,
                 PublishedAt = saved?.PublishedAt,
-                CreatedAt = File.GetCreationTime(fullPath),
+                CreatedAt = File.Exists(fullPath) ? File.GetCreationTime(fullPath) : Directory.GetCreationTime(articleFolder),
+                AudioError = audioError,
                 IsPlayed = saved?.IsPlayed ?? false,
                 IsStarred = saved?.IsStarred ?? false,
-                PlayedAt = saved?.PlayedAt
+                PlayedAt = saved?.PlayedAt,
+                LastViewedAt = saved?.LastViewedAt,
+                LastListenedAt = saved?.LastListenedAt
             };
         }
 
@@ -129,9 +186,15 @@ public sealed class AudioLibraryService
         Save();
     }
 
-    public int MarkAllPlayed()
+    public int MarkAllPlayed(IEnumerable<ArticleAudio> articles)
     {
-        var unplayed = Items.Where(item => !item.IsPlayed).ToList();
+        ArgumentNullException.ThrowIfNull(articles);
+        var visiblePaths = articles
+            .Select(article => article.FilePath)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var unplayed = Items
+            .Where(item => visiblePaths.Contains(item.FilePath) && !item.IsPlayed)
+            .ToList();
         if (unplayed.Count == 0)
         {
             return 0;
@@ -184,13 +247,15 @@ public sealed class AudioLibraryService
     public void AddOrUpdate(ArticleAudio article)
     {
         var legacyFileName = Path.GetFileNameWithoutExtension(article.ArticleFolderPath) +
-            Path.GetExtension(_settings.FinalOutput);
+            ".mp3";
         var legacyPath = Path.GetFullPath(Path.Combine(_outputDirectory, legacyFileName));
         if (_savedEntries.Remove(legacyPath, out var migratedState))
         {
             article.IsPlayed = migratedState.IsPlayed;
             article.IsStarred = migratedState.IsStarred;
             article.PlayedAt = migratedState.PlayedAt;
+            article.LastViewedAt = migratedState.LastViewedAt;
+            article.LastListenedAt = migratedState.LastListenedAt;
         }
 
         var existing = Items.FirstOrDefault(item =>
@@ -203,14 +268,22 @@ public sealed class AudioLibraryService
         {
             existing.Title = article.Title;
             existing.Feed = article.Feed;
+            existing.FeedName = article.FeedName;
+            existing.FeedUrl = article.FeedUrl;
             existing.ArticleUrl = article.ArticleUrl;
             existing.ImageUrl = article.ImageUrl;
             existing.SourceLogoUrl = article.SourceLogoUrl;
             existing.AudioText = article.AudioText;
+            existing.ArticleContentHtml = article.ArticleContentHtml;
             existing.PublishedAt = article.PublishedAt;
             existing.TitleAudioPath = article.TitleAudioPath;
+            existing.TitleAudioEngine = article.TitleAudioEngine;
+            existing.BodyAudioEngine = article.BodyAudioEngine;
+            existing.Categories = article.Categories;
+            existing.IsFavoriteCategory = article.IsFavoriteCategory;
             existing.CachedImagePath = article.CachedImagePath;
             existing.ArticleFolderPath = article.ArticleFolderPath;
+            existing.AudioError = article.AudioError;
             article = existing;
         }
         _savedEntries[article.FilePath] = ToState(article);
@@ -229,6 +302,18 @@ public sealed class AudioLibraryService
     {
         _savedEntries[article.FilePath] = ToState(article);
         Save();
+    }
+
+    public void RecordViewed(ArticleAudio article)
+    {
+        article.LastViewedAt = DateTimeOffset.Now;
+        SaveArticleState(article);
+    }
+
+    public void RecordListened(ArticleAudio article)
+    {
+        article.LastListenedAt = DateTimeOffset.Now;
+        SaveArticleState(article);
     }
 
     public void Save()
@@ -307,17 +392,37 @@ public sealed class AudioLibraryService
                 yield return bodyFile;
             }
         }
+
+        // Articles whose body audio failed to generate have no body.mp3, only an error marker.
+        foreach (var markerFile in Directory.EnumerateFiles(_outputDirectory, ErrorMarkerFileName, SearchOption.AllDirectories))
+        {
+            var articleFolder = Path.GetDirectoryName(markerFile);
+            if (articleFolder is not null &&
+                string.Equals(Path.GetDirectoryName(articleFolder), _outputDirectory, StringComparison.OrdinalIgnoreCase) &&
+                _articleFolderRegex.IsMatch(Path.GetFileName(articleFolder)) &&
+                !File.Exists(Path.Combine(articleFolder, "body.mp3")))
+            {
+                yield return Path.Combine(articleFolder, "body.mp3");
+            }
+        }
     }
 
-    private void RemoveExpiredFiles()
+    private int RemoveExpiredFiles()
     {
+        var removed = 0;
         var cutoff = DateTime.Now.Subtract(_settings.RetentionPeriod);
-        foreach (var file in EnumerateArticleAudioFiles())
+        foreach (var file in EnumerateArticleAudioFiles().ToList())
         {
-            if (File.GetCreationTime(file) >= cutoff)
+            var fullPath = Path.GetFullPath(file);
+            var isStarred = Items.FirstOrDefault(item =>
+                                item.FilePath.Equals(fullPath, StringComparison.OrdinalIgnoreCase))
+                                ?.IsStarred ??
+                            (_savedEntries.TryGetValue(fullPath, out var saved) && saved.IsStarred);
+            if (isStarred || (File.Exists(file) ? File.GetCreationTime(file) : Directory.GetCreationTime(Path.GetDirectoryName(file)!)) >= cutoff)
             {
                 continue;
             }
+            removed++;
 
             var folder = Path.GetDirectoryName(file);
             if (folder is not null &&
@@ -334,25 +439,61 @@ public sealed class AudioLibraryService
                     Directory.Delete(mediaFolder, true);
                 }
             }
-            _savedEntries.Remove(Path.GetFullPath(file));
+            _savedEntries.Remove(fullPath);
         }
+
+        return removed;
     }
 
     private static LibraryEntryState ToState(ArticleAudio article) => new()
     {
         FilePath = article.FilePath,
         TitleAudioPath = article.TitleAudioPath,
+        TitleAudioEngine = article.TitleAudioEngine,
+        BodyAudioEngine = article.BodyAudioEngine,
+        Categories = article.Categories,
         CachedImagePath = article.CachedImagePath,
         ArticleFolderPath = article.ArticleFolderPath,
         Title = article.Title,
         Feed = article.Feed,
+        FeedName = article.FeedName,
+        FeedUrl = article.FeedUrl,
         ArticleUrl = article.ArticleUrl,
         ImageUrl = article.ImageUrl,
         SourceLogoUrl = article.SourceLogoUrl,
         AudioText = article.AudioText,
+        ArticleContentHtml = article.ArticleContentHtml,
         PublishedAt = article.PublishedAt,
         IsPlayed = article.IsPlayed,
         IsStarred = article.IsStarred,
-        PlayedAt = article.PlayedAt
+        PlayedAt = article.PlayedAt,
+        LastViewedAt = article.LastViewedAt,
+        LastListenedAt = article.LastListenedAt
     };
+
+    private void SaveArticleState(ArticleAudio article)
+    {
+        _savedEntries[article.FilePath] = ToState(article);
+        Save();
+    }
+
+    private FeedConfiguration? FindFeedConfiguration(string? feedUrl, string feedHost)
+    {
+        if (!string.IsNullOrWhiteSpace(feedUrl))
+        {
+            var exactMatch = _settings.FeedSources.FirstOrDefault(feed =>
+                feed.Url.Equals(feedUrl, StringComparison.OrdinalIgnoreCase));
+            if (exactMatch is not null)
+            {
+                return exactMatch;
+            }
+        }
+
+        var hostMatches = _settings.FeedSources
+            .Where(feed => Uri.TryCreate(feed.Url, UriKind.Absolute, out var uri) &&
+                uri.Host.Equals(feedHost, StringComparison.OrdinalIgnoreCase))
+            .Take(2)
+            .ToList();
+        return hostMatches.Count == 1 ? hostMatches[0] : null;
+    }
 }

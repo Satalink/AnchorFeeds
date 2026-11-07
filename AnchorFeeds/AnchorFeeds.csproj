@@ -6,21 +6,33 @@
     <RootNamespace>AnchorFeeds</RootNamespace>
     <AssemblyTitle>AnchorFeeds</AssemblyTitle>
     <Product>AnchorFeeds</Product>
-    <Company>AnchorFeeds</Company>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <Company>Satalink</Company>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <ApplicationIcon>Assets\AnchorFeeds.ico</ApplicationIcon>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
   </PropertyGroup>
 
   <ItemGroup>
+    <Using Remove="System.Drawing" />
+    <Using Remove="System.Windows.Forms" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Speech" Version="10.0.0" />
     <PackageReference Include="YamlDotNet" Version="18.1.0" />
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="..\settings.yaml" Link="settings.yaml"
-             CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\settings.yaml" Link="settings.yaml" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Resource Include="Assets\AnchorFeeds.ico" />
+    <Resource Include="Assets\AnchorFeedsLogo.png" />
     <Resource Include="Assets\page-flip.wav" />
+    <Content Include="Assets\AnchorFeeds_splash.mp4" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

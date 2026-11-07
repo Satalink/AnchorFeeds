@@ -2,25 +2,36 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
 using System.Security;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml;
 using AnchorFeeds.Models;
 
 namespace AnchorFeeds.Services;
 
-public sealed class NewsGenerationService(AppSettings settings, string applicationDirectory)
+public sealed class NewsGenerationService(
+    AppSettings settings,
+    string applicationDirectory,
+    FeedCategoryPreferencesService categoryPreferences)
 {
     private const int EdgeTtsDefaultBitrateKbps = 48;
+    private const int MaxNewArticlesPerFeedPerUpdate = 100;
+    private const string EdgeTtsEngineName = "Edge TTS";
+    private const string WindowsSpeechEngineName = "Windows Speech";
     private static readonly HttpClient HttpClient = new() { Timeout = TimeSpan.FromSeconds(45) };
+    private readonly FeedUpdateStateService _feedUpdateState = new(settings.FeedSources);
     private readonly string _outputDirectory = ArticleFileNaming.ResolveOutputDirectory(
         applicationDirectory,
-        settings.FinalOutput);
-    private readonly string _tempDirectory = ResolvePath(applicationDirectory, settings.OutputDirectory);
+        settings.OutputDirectory);
+    private string TempDirectory => Path.Combine(_outputDirectory, ".tmp");
 
     public async Task<(int GeneratedCount, IReadOnlyList<string> FailedFeeds, IReadOnlyList<string> MediaWarnings)> GenerateAsync(
         IProgress<string> progress,
         IProgress<ArticleAudio> generatedArticles,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        ArticleAudio? articleToRebuild = null,
+        bool automatic = false,
+        string? ttsEngineOverride = null)
     {
         if (settings.Voices.GetVoices().Count == 0)
         {
@@ -28,21 +39,47 @@ public sealed class NewsGenerationService(AppSettings settings, string applicati
         }
 
         var voices = settings.Voices.GetVoices();
-        var edgeTtsPath = EdgeTtsVoiceCatalog.FindExecutable();
+        var ttsEngine = ttsEngineOverride ?? settings.TtsEngine;
+        var edgeTtsPath = AppSettings.UsesEdgeTts(ttsEngine)
+            ? EdgeTtsVoiceCatalog.FindExecutable()
+            : string.Empty;
         Directory.CreateDirectory(_outputDirectory);
-        Directory.CreateDirectory(_tempDirectory);
+        Directory.CreateDirectory(TempDirectory);
         var generated = 0;
         var nextVoiceIndex = 0;
         var failedFeeds = new List<string>();
         var mediaWarnings = new List<string>();
+        var rebuildArticleFound = false;
+        var bannedMatcher = new PhraseMatcher(settings.BannedPhrases);
+        var starredMatcher = new PhraseMatcher(settings.StarredPhrases);
 
-        for (var feedIndex = 0; feedIndex < settings.Feeds.Count; feedIndex++)
+        for (var feedIndex = 0; feedIndex < settings.FeedSources.Count; feedIndex++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var feedUrl = settings.Feeds[feedIndex];
+            var feed = settings.FeedSources[feedIndex];
+            var feedUrl = feed.Url;
             var feedUri = new Uri(feedUrl);
+            if (articleToRebuild is null && !feed.Enabled)
+            {
+                continue;
+            }
+
+            if (articleToRebuild is not null &&
+                !string.Equals(articleToRebuild.Feed, feedUri.Host, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (automatic &&
+                (feed.GetEffectiveUpdatePeriod(settings.FeedUpdateIntervalPeriod) is not { } interval ||
+                 (_feedUpdateState.GetLastCheckedAt(feedUrl) is { } lastUpdated &&
+                  DateTimeOffset.UtcNow - lastUpdated < interval)))
+            {
+                continue;
+            }
+
             var feedSlug = ArticleFileNaming.BuildFeedSlug(feedUrl);
-            progress.Report($"Fetching feed {feedIndex + 1}/{settings.Feeds.Count}: {feedUri.Host}");
+            progress.Report($"Fetching feed {feedIndex + 1}/{settings.FeedSources.Count}: {feed.Name}");
             string xml;
             try
             {
@@ -51,60 +88,138 @@ public sealed class NewsGenerationService(AppSettings settings, string applicati
             catch (HttpRequestException ex)
             {
                 failedFeeds.Add($"{feedUrl}: {ex.Message}");
-                progress.Report($"Skipping feed {feedUri.Host}: {ex.Message}");
+                progress.Report($"Skipping feed {feed.Name}: {ex.Message}");
                 continue;
             }
 
             var articles = ParseArticles(xml, feedUri);
+            var feedCategoryPreferences = categoryPreferences.Get(feedUrl);
+            _feedUpdateState.MarkFeedChecked(feedUrl);
+            if (articleToRebuild is null)
+            {
+                articles = articles
+                    .OrderBy(article => article.PublishedAt ?? DateTimeOffset.MinValue)
+                    .ToList();
+            }
+
             var generatedForFeed = 0;
 
             foreach (var article in articles)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (generatedForFeed >= settings.MaxArticlesPerFeed)
+                if (articleToRebuild is null &&
+                    (FeedCategoryPreferencesService.IsBlocked(feedCategoryPreferences, article.Categories) ||
+                     bannedMatcher.IsMatch(article.Title, article.Description)))
+                {
+                    _feedUpdateState.MarkItemProcessed(
+                        feedUrl,
+                        article.PublishedAt,
+                        article.ArticleUrl,
+                        article.Title);
+                    continue;
+                }
+
+                if (articleToRebuild is null &&
+                    article.PublishedAt is { } publishedAt &&
+                    publishedAt < DateTimeOffset.UtcNow - settings.RetentionPeriod)
+                {
+                    _feedUpdateState.MarkItemProcessed(
+                        feedUrl,
+                        article.PublishedAt,
+                        article.ArticleUrl,
+                        article.Title);
+                    continue;
+                }
+
+                if (articleToRebuild is not null &&
+                    !MatchesArticle(articleToRebuild, article, feedUri.Host))
+                {
+                    continue;
+                }
+
+                if (articleToRebuild is null &&
+                    _feedUpdateState.IsProcessed(
+                        feedUrl,
+                        article.PublishedAt,
+                        article.ArticleUrl,
+                        article.Title))
+                {
+                    continue;
+                }
+
+                if (articleToRebuild is null && generatedForFeed >= MaxNewArticlesPerFeedPerUpdate)
                 {
                     break;
                 }
 
                 if (string.IsNullOrWhiteSpace(article.Title))
                 {
+                    if (articleToRebuild is null)
+                    {
+                        _feedUpdateState.MarkItemProcessed(
+                            feedUrl,
+                            article.PublishedAt,
+                            article.ArticleUrl,
+                            article.Title);
+                    }
                     continue;
+                }
+
+                if (articleToRebuild is not null)
+                {
+                    rebuildArticleFound = true;
                 }
 
                 var titleSlug = ArticleFileNaming.BuildTitleSlug(article.Title);
                 var configuredOutputPath = ArticleFileNaming.BuildLegacyOutputPath(
                     _outputDirectory,
-                    settings.FinalOutput,
                     feedSlug,
                     titleSlug);
                 var articleFolder = ArticleFileNaming.BuildArticleFolderPath(
                     _outputDirectory,
-                    settings.FinalOutput,
                     feedSlug,
                     titleSlug);
-                var bodyPath = ArticleFileNaming.BuildBodyAudioPath(settings.FinalOutput, articleFolder);
+                var bodyPath = ArticleFileNaming.BuildBodyAudioPath(articleFolder);
                 var titlePath = Path.Combine(articleFolder, "title.mp3");
-                var legacyBodyExists = File.Exists(configuredOutputPath) &&
-                    new FileInfo(configuredOutputPath).Length > 0;
-                var selectedBodyPath = File.Exists(bodyPath) ? bodyPath :
-                    legacyBodyExists ? configuredOutputPath : bodyPath;
+                var selectedBodyPath = bodyPath;
+                if (articleToRebuild is not null)
+                {
+                    ClearArticleFiles(articleToRebuild, articleFolder, configuredOutputPath);
+                }
                 Directory.CreateDirectory(articleFolder);
 
                 var titleVoiceIndex = nextVoiceIndex;
+                var titleAudioEngine = articleToRebuild?.TitleAudioEngine ?? string.Empty;
                 if (!File.Exists(titlePath) || new FileInfo(titlePath).Length == 0)
                 {
                     progress.Report($"Generating title audio for {article.Title}");
-                    titleVoiceIndex = await GenerateAudioFileAsync(
-                        edgeTtsPath,
-                        voices,
-                        nextVoiceIndex,
-                        article.Title,
-                        titlePath,
-                        article.Title,
-                        feedUri.Host,
-                        settings.Mp3BitrateKbps,
-                        progress,
-                        cancellationToken);
+                    try
+                    {
+                        var titleGeneration = await GenerateAudioFileAsync(
+                            edgeTtsPath,
+                            voices,
+                            nextVoiceIndex,
+                            article.Title,
+                            titlePath,
+                            article.Title,
+                            feedUri.Host,
+                            settings.Mp3BitrateKbps,
+                            ttsEngine,
+                            progress,
+                            cancellationToken);
+                        titleVoiceIndex = titleGeneration.VoiceIndex;
+                        titleAudioEngine = titleGeneration.EngineName;
+                    }
+                    catch (InvalidOperationException ex) when (!cancellationToken.IsCancellationRequested)
+                    {
+                        // A missing title clip is not fatal; the body audio is still attempted.
+                        DiagnosticLog.Write("Generation", $"Title audio failed for \"{article.Title}\": {ex.Message}");
+                        titlePath = string.Empty;
+                    }
+                }
+                else if (string.IsNullOrWhiteSpace(titleAudioEngine))
+                {
+                    titleAudioEngine = "Unknown";
                 }
 
                 string? cachedImagePath = ArticleMediaCache.FindCachedImage(articleFolder);
@@ -138,63 +253,88 @@ public sealed class NewsGenerationService(AppSettings settings, string applicati
                     }
                 }
 
-                if (!File.Exists(bodyPath) && legacyBodyExists)
-                {
-                    try
-                    {
-                        File.Move(configuredOutputPath, bodyPath);
-                        selectedBodyPath = bodyPath;
-                    }
-                    catch (IOException ex)
-                    {
-                        mediaWarnings.Add(
-                            $"{article.Title}: the existing audio file could not be moved into its article folder: {ex.Message}");
-                    }
-                }
-
-                var bodyText = string.IsNullOrWhiteSpace(article.Description)
-                    ? article.Title
-                    : article.Description;
+                var bodyText = ArticleContentFormatter.CreatePlainText(
+                    article.DescriptionHtml,
+                    string.IsNullOrWhiteSpace(article.Description)
+                        ? article.Title
+                        : article.Description);
                 var articleAudio = new ArticleAudio
                 {
                     FilePath = selectedBodyPath,
                     TitleAudioPath = titlePath,
+                    TitleAudioEngine = titleAudioEngine,
+                    Categories = article.Categories.ToList(),
                     CachedImagePath = cachedImagePath ?? string.Empty,
                     ArticleFolderPath = articleFolder,
                     Title = article.Title,
                     Feed = feedUri.Host,
+                    FeedName = feed.Name,
+                    FeedUrl = feed.Url,
                     ArticleUrl = article.ArticleUrl,
                     ImageUrl = article.ImageUrl,
                     SourceLogoUrl = article.SourceLogoUrl,
                     AudioText = bodyText,
+                    ArticleContentHtml = article.DescriptionHtml,
                     PublishedAt = article.PublishedAt,
-                    CreatedAt = File.Exists(selectedBodyPath) ? File.GetCreationTime(selectedBodyPath) : DateTime.Now
+                    CreatedAt = DateTime.Now,
+                    IsStarred = articleToRebuild is null && starredMatcher.IsMatch(article.Title, bodyText)
                 };
-                if (File.Exists(selectedBodyPath) && new FileInfo(selectedBodyPath).Length > 0)
+                nextVoiceIndex = (titleVoiceIndex + 1) % voices.Count;
+                var errorMarkerPath = Path.Combine(articleFolder, AudioLibraryService.ErrorMarkerFileName);
+                try
                 {
-                    generatedArticles.Report(articleAudio);
-                    progress.Report($"Skipping existing: {article.Title}");
-                    continue;
+                    var bodyGeneration = await GenerateAudioFileAsync(
+                        edgeTtsPath,
+                        voices,
+                        titleVoiceIndex,
+                        bodyText,
+                        bodyPath,
+                        article.Title,
+                        feedUri.Host,
+                        settings.Mp3BitrateKbps,
+                        ttsEngine,
+                        progress,
+                        cancellationToken);
+                    articleAudio.BodyAudioEngine = bodyGeneration.EngineName;
+                    nextVoiceIndex = (bodyGeneration.VoiceIndex + 1) % voices.Count;
+                    if (File.Exists(errorMarkerPath))
+                    {
+                        File.Delete(errorMarkerPath);
+                    }
+
+                    generated++;
+                    generatedForFeed++;
+                    articleAudio.CreatedAt = File.GetCreationTime(bodyPath);
+                }
+                catch (InvalidOperationException ex) when (!cancellationToken.IsCancellationRequested)
+                {
+                    // Keep the article in the library, flagged, instead of aborting the whole run.
+                    var summary = ex.InnerException?.Message ?? ex.Message;
+                    summary = summary.Split('\n', 2)[0].Trim();
+                    articleAudio.AudioError = summary;
+                    File.WriteAllText(errorMarkerPath, summary);
+                    progress.Report($"Audio generation failed for {article.Title}; the article is marked with an error.");
+                    DiagnosticLog.Write("Generation", $"Body audio failed for \"{article.Title}\": {ex}");
                 }
 
-                nextVoiceIndex = (titleVoiceIndex + 1) % voices.Count;
-                nextVoiceIndex = (await GenerateAudioFileAsync(
-                    edgeTtsPath,
-                    voices,
-                    titleVoiceIndex,
-                    bodyText,
-                    bodyPath,
-                    article.Title,
-                    feedUri.Host,
-                    settings.Mp3BitrateKbps,
-                    progress,
-                    cancellationToken) + 1) % voices.Count;
-
-                generated++;
-                generatedForFeed++;
-                articleAudio.CreatedAt = File.GetCreationTime(bodyPath);
+                if (articleToRebuild is null)
+                {
+                    _feedUpdateState.MarkItemProcessed(
+                        feedUrl,
+                        article.PublishedAt,
+                        article.ArticleUrl,
+                        article.Title);
+                }
                 generatedArticles.Report(articleAudio);
             }
+        }
+
+        if (articleToRebuild is not null && !rebuildArticleFound)
+        {
+            var failedFeed = failedFeeds.FirstOrDefault();
+            throw new InvalidOperationException(failedFeed is null
+                ? $"Could not find \"{articleToRebuild.Title}\" in the configured feeds. The article may have been removed or changed."
+                : $"Could not rebuild \"{articleToRebuild.Title}\" because its feed could not be retrieved: {failedFeed}");
         }
 
         progress.Report(
@@ -204,7 +344,41 @@ public sealed class NewsGenerationService(AppSettings settings, string applicati
         return (generated, failedFeeds, mediaWarnings);
     }
 
-    private async Task<int> GenerateAudioFileAsync(
+    private static bool MatchesArticle(ArticleAudio target, NewsArticle article, string feedHost) =>
+        string.Equals(target.Feed, feedHost, StringComparison.OrdinalIgnoreCase) &&
+        (string.Equals(target.ArticleUrl, article.ArticleUrl, StringComparison.OrdinalIgnoreCase) ||
+         string.Equals(target.Title, article.Title, StringComparison.OrdinalIgnoreCase));
+
+    private void ClearArticleFiles(ArticleAudio target, string articleFolder, string legacyAudioPath)
+    {
+        var targetFolder = Path.GetFullPath(target.ArticleFolderPath);
+        if (IsDirectChildOfOutputDirectory(targetFolder) && Directory.Exists(targetFolder))
+        {
+            Directory.Delete(targetFolder, recursive: true);
+        }
+
+        var newFolder = Path.GetFullPath(articleFolder);
+        if (IsDirectChildOfOutputDirectory(newFolder) && Directory.Exists(newFolder))
+        {
+            Directory.Delete(newFolder, recursive: true);
+        }
+
+        foreach (var audioPath in new[] { target.FilePath, legacyAudioPath }.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            var fullPath = Path.GetFullPath(audioPath);
+            if (IsDirectChildOfOutputDirectory(fullPath) &&
+                Path.GetExtension(fullPath).Equals(".mp3", StringComparison.OrdinalIgnoreCase) &&
+                File.Exists(fullPath))
+            {
+                File.Delete(fullPath);
+            }
+        }
+    }
+
+    private bool IsDirectChildOfOutputDirectory(string path) =>
+        string.Equals(Path.GetDirectoryName(path), _outputDirectory, StringComparison.OrdinalIgnoreCase);
+
+    private async Task<AudioGenerationResult> GenerateAudioFileAsync(
         string edgeTtsPath,
         IReadOnlyList<string> voices,
         int startingVoiceIndex,
@@ -213,6 +387,7 @@ public sealed class NewsGenerationService(AppSettings settings, string applicati
         string articleTitle,
         string feedHost,
         int bitrateKbps,
+        string ttsEngine,
         IProgress<string> progress,
         CancellationToken cancellationToken)
     {
@@ -220,27 +395,79 @@ public sealed class NewsGenerationService(AppSettings settings, string applicati
             ?? throw new InvalidDataException($"Audio output path has no directory: {outputPath}");
         Directory.CreateDirectory(outputDirectory);
         var tempId = Guid.NewGuid().ToString("N");
-        var sourceTempPath = Path.Combine(outputDirectory, $".{tempId}.source.mp3");
-        var tempPath = Path.Combine(outputDirectory, $".{tempId}.tmp.mp3");
+        var sourceTempPath = Path.Combine(TempDirectory, $"{tempId}.source.mp3");
+        var tempPath = Path.Combine(TempDirectory, $"{tempId}.tmp.mp3");
         try
         {
-            var voiceIndex = await RunEdgeTtsWithVoiceFallbackAsync(
-                edgeTtsPath,
-                voices,
-                startingVoiceIndex,
-                text,
-                sourceTempPath,
-                articleTitle,
-                feedHost,
-                bitrateKbps,
-                progress,
-                cancellationToken);
-            if (!File.Exists(sourceTempPath) || new FileInfo(sourceTempPath).Length == 0)
+            var voiceIndex = startingVoiceIndex % voices.Count;
+            var edgeProducedAudio = false;
+            if (AppSettings.UsesEdgeTts(ttsEngine))
             {
-                throw new InvalidOperationException($"Edge TTS did not create audio for '{articleTitle}'.");
+                var maxAttempts = ttsEngine == AppSettings.EdgeTtsOnlyEngine ? 3 : 1;
+                for (var attempt = 1; attempt <= maxAttempts && !edgeProducedAudio; attempt++)
+                {
+                    try
+                    {
+                        voiceIndex = await RunEdgeTtsAsync(
+                            edgeTtsPath,
+                            voices,
+                            startingVoiceIndex,
+                            text,
+                            sourceTempPath,
+                            articleTitle,
+                            feedHost,
+                            bitrateKbps,
+                            progress,
+                            cancellationToken);
+                        edgeProducedAudio = File.Exists(sourceTempPath) && new FileInfo(sourceTempPath).Length > 0;
+                    }
+                    catch (InvalidOperationException ex)
+                    {
+                        if (attempt < maxAttempts)
+                        {
+                            progress.Report($"Edge TTS failed for {articleTitle} ({ex.Message}); retrying (attempt {attempt + 1} of {maxAttempts}).");
+                        }
+                        else if (maxAttempts == 1)
+                        {
+                            progress.Report($"Edge TTS failed for {articleTitle} ({ex.Message}); using Windows speech instead.");
+                        }
+                        else
+                        {
+                            throw new InvalidOperationException(
+                                $"Edge TTS failed for '{articleTitle}' after {maxAttempts} attempts: {ex.Message}", ex);
+                        }
+                    }
+                }
             }
 
-            if (bitrateKbps is 0 or EdgeTtsDefaultBitrateKbps)
+            if (!edgeProducedAudio && ttsEngine == AppSettings.EdgeTtsOnlyEngine)
+            {
+                throw new InvalidOperationException($"Edge TTS did not produce audio for '{articleTitle}' and fallback is disabled.");
+            }
+
+            if (!edgeProducedAudio)
+            {
+                var wavPath = Path.Combine(TempDirectory, $"{tempId}.source.wav");
+                try
+                {
+                    progress.Report($"Generating {articleTitle} with Windows speech");
+                    await Task.Run(() => SynthesizeWithWindowsSpeech(text, wavPath), cancellationToken);
+                    await RunFfmpegAsync(
+                        FindFfmpeg(),
+                        wavPath,
+                        tempPath,
+                        bitrateKbps == 0 ? EdgeTtsDefaultBitrateKbps : bitrateKbps,
+                        cancellationToken);
+                }
+                finally
+                {
+                    if (File.Exists(wavPath))
+                    {
+                        File.Delete(wavPath);
+                    }
+                }
+            }
+            else if (bitrateKbps is 0 or EdgeTtsDefaultBitrateKbps)
             {
                 File.Move(sourceTempPath, tempPath, true);
             }
@@ -260,7 +487,9 @@ public sealed class NewsGenerationService(AppSettings settings, string applicati
             }
 
             File.Move(tempPath, outputPath, true);
-            return voiceIndex;
+            return new AudioGenerationResult(
+                voiceIndex,
+                edgeProducedAudio ? EdgeTtsEngineName : WindowsSpeechEngineName);
         }
         finally
         {
@@ -275,7 +504,9 @@ public sealed class NewsGenerationService(AppSettings settings, string applicati
         }
     }
 
-    private async Task<int> RunEdgeTtsWithVoiceFallbackAsync(
+    private readonly record struct AudioGenerationResult(int VoiceIndex, string EngineName);
+
+    private async Task<int> RunEdgeTtsAsync(
         string edgeTtsPath,
         IReadOnlyList<string> voices,
         int startingVoiceIndex,
@@ -287,50 +518,35 @@ public sealed class NewsGenerationService(AppSettings settings, string applicati
         IProgress<string> progress,
         CancellationToken cancellationToken)
     {
-        Exception? lastFailure = null;
-        var triedVoices = new List<string>();
-        for (var attempt = 0; attempt < voices.Count; attempt++)
+        var voiceIndex = startingVoiceIndex % voices.Count;
+        var voice = voices[voiceIndex];
+        var outputQuality = bitrateKbps == 0 ? "Edge TTS default quality" : $"{bitrateKbps} kbps";
+        progress.Report($"Generating {articleTitle} with {voice} at {outputQuality}");
+        if (File.Exists(outputPath))
         {
-            var voiceIndex = (startingVoiceIndex + attempt) % voices.Count;
-            var voice = voices[voiceIndex];
-            triedVoices.Add(voice);
-            var outputQuality = bitrateKbps == 0 ? "Edge TTS default quality" : $"{bitrateKbps} kbps";
-            progress.Report($"Generating {articleTitle} with {voice} at {outputQuality}");
-            if (File.Exists(outputPath))
-            {
-                File.Delete(outputPath);
-            }
-
-            try
-            {
-                await RunEdgeTtsAsync(edgeTtsPath, voice, text, outputPath, cancellationToken);
-                return voiceIndex;
-            }
-            catch (InvalidOperationException ex) when (IsNoAudioReceived(ex))
-            {
-                lastFailure = ex;
-                if (attempt + 1 < voices.Count)
-                {
-                    progress.Report($"No audio received from {voice}; trying another selected voice for {articleTitle}.");
-                }
-            }
-            catch (InvalidOperationException ex)
-            {
-                throw new InvalidOperationException(
-                    $"edge-tts failed for article '{articleTitle}' from {feedHost} using voice '{voice}': {ex.Message}",
-                    ex);
-            }
+            File.Delete(outputPath);
         }
 
-        throw new InvalidOperationException(
-            $"edge-tts received no audio for article '{articleTitle}' from {feedHost} using all selected voices " +
-            $"({string.Join(", ", triedVoices)}). Check the internet connection and try again.",
-            lastFailure);
+        try
+        {
+            await RunEdgeTtsAsync(edgeTtsPath, voice, text, outputPath, cancellationToken);
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw new InvalidOperationException(
+                $"edge-tts failed for article '{articleTitle}' from {feedHost} using voice '{voice}': {ex.Message}",
+                ex);
+        }
+
+        return voiceIndex;
     }
 
-    private static bool IsNoAudioReceived(InvalidOperationException exception) =>
-        exception.Message.Contains("NoAudioReceived", StringComparison.OrdinalIgnoreCase) ||
-        exception.Message.Contains("no audio was received", StringComparison.OrdinalIgnoreCase);
+    private static void SynthesizeWithWindowsSpeech(string text, string wavPath)
+    {
+        using var synthesizer = new System.Speech.Synthesis.SpeechSynthesizer();
+        synthesizer.SetOutputToWaveFile(wavPath);
+        synthesizer.Speak(text);
+    }
 
     private async Task RunEdgeTtsAsync(
         string edgeTtsPath,
@@ -339,6 +555,8 @@ public sealed class NewsGenerationService(AppSettings settings, string applicati
         string outputPath,
         CancellationToken cancellationToken)
     {
+        var textPath = Path.Combine(Path.GetTempPath(), $"anchorfeeds-tts-{Guid.NewGuid():N}.txt");
+        await File.WriteAllTextAsync(textPath, text, new System.Text.UTF8Encoding(false), cancellationToken);
         var startInfo = new ProcessStartInfo
         {
             FileName = edgeTtsPath,
@@ -349,34 +567,50 @@ public sealed class NewsGenerationService(AppSettings settings, string applicati
         };
         startInfo.ArgumentList.Add("--voice");
         startInfo.ArgumentList.Add(voice);
-        startInfo.ArgumentList.Add("--text");
-        startInfo.ArgumentList.Add(text);
+        startInfo.ArgumentList.Add("--file");
+        startInfo.ArgumentList.Add(textPath);
         startInfo.ArgumentList.Add("--write-media");
         startInfo.ArgumentList.Add(outputPath);
 
-        using var process = new Process { StartInfo = startInfo };
-        if (!process.Start())
-        {
-            throw new InvalidOperationException("Could not start edge-tts.");
-        }
-
-        var standardError = process.StandardError.ReadToEndAsync(cancellationToken);
-        var standardOutput = process.StandardOutput.ReadToEndAsync(cancellationToken);
         try
         {
-            await process.WaitForExitAsync(cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            process.Kill(true);
-            throw;
-        }
+            using var process = new Process { StartInfo = startInfo };
+            if (!process.Start())
+            {
+                throw new InvalidOperationException("Could not start edge-tts.");
+            }
 
-        var error = await standardError;
-        _ = await standardOutput;
-        if (process.ExitCode != 0)
+            var standardError = process.StandardError.ReadToEndAsync(cancellationToken);
+            var standardOutput = process.StandardOutput.ReadToEndAsync(cancellationToken);
+            try
+            {
+                await process.WaitForExitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                process.Kill(true);
+                throw;
+            }
+
+            var error = await standardError;
+            _ = await standardOutput;
+            if (process.ExitCode != 0)
+            {
+                throw new InvalidOperationException($"edge-tts failed (exit code {process.ExitCode}): {error.Trim()}");
+            }
+        }
+        finally
         {
-            throw new InvalidOperationException($"edge-tts failed (exit code {process.ExitCode}): {error.Trim()}");
+            try
+            {
+                File.Delete(textPath);
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
         }
     }
 
@@ -454,21 +688,32 @@ public sealed class NewsGenerationService(AppSettings settings, string applicati
                      ?? throw new InvalidDataException("The feed has no RSS items or Atom entries."))
         {
             var title = item.SelectSingleNode("./*[local-name()='title']")?.InnerText ?? string.Empty;
-            var description = item.SelectSingleNode("./*[local-name()='encoded']")?.InnerText ??
-                              item.SelectSingleNode("./*[local-name()='content']")?.InnerText ??
-                              item.SelectSingleNode("./*[local-name()='description']")?.InnerText ??
-                              item.SelectSingleNode("./*[local-name()='summary']")?.InnerText ??
-                              string.Empty;
+            var description = GetArticleDescription(item);
             result.Add(new NewsArticle(
                 CleanNewsText(title),
                 CleanNewsText(description),
+                description,
                 GetArticleUrl(item),
                 GetImageUrl(item),
                 sourceLogoUrl,
-                GetPublishedAt(item)));
+                GetPublishedAt(item),
+                FeedCategoryPreferencesService.ExtractCategories(item)));
         }
 
         return result;
+    }
+
+    private static string GetArticleDescription(XmlNode item)
+    {
+        var contentNode = item.SelectSingleNode("./*[local-name()='encoded']") ??
+                          item.SelectSingleNode("./*[local-name()='content']") ??
+                          item.SelectSingleNode("./*[local-name()='description']") ??
+                          item.SelectSingleNode("./*[local-name()='summary']");
+        return contentNode is null
+            ? string.Empty
+            : contentNode.ChildNodes.Cast<XmlNode>().Any(child => child.NodeType == XmlNodeType.Element)
+                ? contentNode.InnerXml
+                : contentNode.InnerText;
     }
 
     private static DateTimeOffset? GetPublishedAt(XmlNode item)
@@ -582,9 +827,91 @@ public sealed class NewsGenerationService(AppSettings settings, string applicati
 
     private static string CleanNewsText(string value)
     {
-        var decoded = WebUtility.HtmlDecode(value);
-        var plainText = Regex.Replace(decoded, "<[^>]*>", " ");
-        return Regex.Replace(plainText, @"\s+", " ").Trim();
+        var text = WebUtility.HtmlDecode(value);
+        text = Regex.Replace(text, @"<!\[CDATA\[|\]\]>", " ");
+        text = Regex.Replace(text, @"<!--.*?-->", " ", RegexOptions.Singleline);
+        text = Regex.Replace(
+            text,
+            @"<(script|style|noscript|iframe|svg|figcaption|template)\b.*?</\1\s*>",
+            " ",
+            RegexOptions.Singleline | RegexOptions.IgnoreCase);
+        text = Regex.Replace(text, @"<(br|/p|/div|/li|/h[1-6])\b[^>]*>", ". ", RegexOptions.IgnoreCase);
+        text = Regex.Replace(
+            text,
+            @"<a\b[^>]*>(?<text>[\s\S]*?)</a\s*>",
+            match =>
+            {
+                var linkText = Regex.Replace(match.Groups["text"].Value, "<[^>]*>", " ");
+                linkText = WebUtility.HtmlDecode(WebUtility.HtmlDecode(linkText));
+                return IsAllCapsLinkText(linkText) ? " " : match.Groups["text"].Value;
+            },
+            RegexOptions.IgnoreCase);
+        text = Regex.Replace(text, "<[^>]*>", " ");
+        // Feeds sometimes double-encode entities, leaving "&amp;nbsp;" after the first decode.
+        text = WebUtility.HtmlDecode(text);
+
+        text = Regex.Replace(
+            text,
+            @"!?\[([^\]]*)\]\([^)]*\)",
+            match => IsAllCapsLinkText(match.Groups[1].Value) ? " " : match.Groups[1].Value);
+        text = Regex.Replace(text, @"\[(?:\.{2,3}|…|&#8230;)\]", " ");
+        text = Regex.Replace(text, @"\b(?:https?://|www\.)\S+", " ", RegexOptions.IgnoreCase);
+        text = Regex.Replace(text, @"\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b", " ");
+        text = Regex.Replace(text, @"(?<!\w)[#@](?=\w)", string.Empty);
+        text = Regex.Replace(text, @"(\*{1,3}|_{2,}|`+|~{2,})", string.Empty);
+        text = Regex.Replace(text, @"(?m)^\s*(?:#{1,6}|>|[-*+•▪●◦]|\d+[.)])\s+", string.Empty);
+        text = Regex.Replace(
+            text,
+            @"(?i)\b(?:the post\b.*?\bappeared first on\b.*?(?:\.|$)|(?:read|continue reading|click here to read|view|see|learn) (?:more|the (?:full|rest of the) (?:article|story|post))[^.!?]*[.!?]?|(?:appeared first|originally published) (?:on|at)\b.*?(?:\.|$)|sign up for\b.*?(?:newsletter|alerts)[^.!?]*[.!?]?)",
+            " ");
+
+        var builder = new StringBuilder(text.Length);
+        foreach (var rune in text.EnumerateRunes())
+        {
+            var category = Rune.GetUnicodeCategory(rune);
+            switch (category)
+            {
+                case System.Globalization.UnicodeCategory.Control:
+                case System.Globalization.UnicodeCategory.Format:
+                case System.Globalization.UnicodeCategory.PrivateUse:
+                case System.Globalization.UnicodeCategory.Surrogate:
+                case System.Globalization.UnicodeCategory.OtherNotAssigned:
+                case System.Globalization.UnicodeCategory.NonSpacingMark when rune.Value is 0xFE0E or 0xFE0F:
+                case System.Globalization.UnicodeCategory.ModifierSymbol:
+                    builder.Append(' ');
+                    break;
+                case System.Globalization.UnicodeCategory.OtherSymbol when rune.Value != 0x00B0:
+                    builder.Append(' ');
+                    break;
+                default:
+                    builder.Append(rune.ToString());
+                    break;
+            }
+        }
+
+        var cleaned = Regex.Replace(builder.ToString(), @"\s+", " ");
+        cleaned = Regex.Replace(cleaned, @"(\s*\.){2,}\s*(?=\S)", ". ");
+        cleaned = Regex.Replace(cleaned, @"\s+([.,;:!?])", "$1");
+        return cleaned.Trim();
+    }
+
+    private static bool IsAllCapsLinkText(string text)
+    {
+        var letters = text.Where(char.IsLetter).ToList();
+        return letters.Count > 0 && letters.All(char.IsUpper);
+    }
+
+    public static bool IsFfmpegAvailable()
+    {
+        try
+        {
+            FindFfmpeg();
+            return true;
+        }
+        catch (FileNotFoundException)
+        {
+            return false;
+        }
     }
 
     private static string FindFfmpeg()
@@ -598,14 +925,13 @@ public sealed class NewsGenerationService(AppSettings settings, string applicati
             ?? throw new FileNotFoundException("FFmpeg was not found. Install FFmpeg and ensure ffmpeg.exe is on PATH.");
     }
 
-    private static string ResolvePath(string baseDirectory, string path) =>
-        Path.GetFullPath(Path.IsPathRooted(path) ? path : Path.Combine(baseDirectory, path));
-
     private sealed record NewsArticle(
         string Title,
         string Description,
+        string DescriptionHtml,
         string ArticleUrl,
         string ImageUrl,
         string SourceLogoUrl,
-        DateTimeOffset? PublishedAt);
+        DateTimeOffset? PublishedAt,
+        IReadOnlyList<string> Categories);
 }

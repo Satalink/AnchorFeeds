@@ -11,6 +11,14 @@ public static class PageTurnSound
 
     public static void Play() => Player.Value.Play();
 
+    public static void Stop()
+    {
+        if (Player.IsValueCreated)
+        {
+            Player.Value.Stop();
+        }
+    }
+
     public static SoundPlayer CreatePlayer()
     {
         var stream = new MemoryStream(WaveData.Value, writable: false);

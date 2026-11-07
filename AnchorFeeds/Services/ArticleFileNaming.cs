@@ -6,25 +6,17 @@ namespace AnchorFeeds.Services;
 
 public static class ArticleFileNaming
 {
-    public static bool UsesArticleFolderTemplate(string finalOutput) =>
-        finalOutput.EndsWith(Path.DirectorySeparatorChar) ||
-        finalOutput.EndsWith(Path.AltDirectorySeparatorChar) ||
-        Path.GetFileName(finalOutput).Equals("body.mp3", StringComparison.OrdinalIgnoreCase);
+    public const string ArticleFolderTemplate = "{feed}_{title}";
 
-    public static string GetArticleFolderTemplate(string finalOutput) =>
-        UsesArticleFolderTemplate(finalOutput)
-            ? Path.GetFileName(Path.TrimEndingDirectorySeparator(
-                Path.GetFileName(finalOutput).Equals("body.mp3", StringComparison.OrdinalIgnoreCase)
-                    ? Path.GetDirectoryName(finalOutput) ?? string.Empty
-                    : finalOutput)) ?? string.Empty
-            : Path.GetFileNameWithoutExtension(finalOutput);
+    public static string GetArticleFolderTemplate() => ArticleFolderTemplate;
 
-    public static string GetLegacyFilenameTemplate(string finalOutput) =>
-        UsesArticleFolderTemplate(finalOutput)
-            ? $"{GetArticleFolderTemplate(finalOutput)}.mp3"
-            : Path.GetFileName(finalOutput);
+    public static string GetLegacyFilenameTemplate() => $"{ArticleFolderTemplate}.mp3";
 
-    public static string ResolveOutputDirectory(string baseDirectory, string finalOutput)
+    public static string ResolveOutputDirectory(string baseDirectory, string outputDirectory) =>
+        Path.TrimEndingDirectorySeparator(Path.GetFullPath(
+            Path.IsPathRooted(outputDirectory) ? outputDirectory : Path.Combine(baseDirectory, outputDirectory)));
+
+    public static string ResolveLegacyOutputDirectory(string baseDirectory, string finalOutput)
     {
         var feedPlaceholder = finalOutput.IndexOf("{feed}", StringComparison.Ordinal);
         if (feedPlaceholder < 0)
@@ -38,13 +30,15 @@ public static class ArticleFileNaming
         return Path.TrimEndingDirectorySeparator(fullPath);
     }
 
+    public static string BuildFinalOutputTemplate(string outputDirectory) =>
+        Path.Combine(outputDirectory, ArticleFolderTemplate) + Path.DirectorySeparatorChar;
+
     public static string BuildArticleFolderPath(
         string outputDirectory,
-        string finalOutput,
         string feedSlug,
         string titleSlug)
     {
-        var folderName = GetArticleFolderTemplate(finalOutput)
+        var folderName = ArticleFolderTemplate
             .Replace("{feed}", feedSlug, StringComparison.Ordinal)
             .Replace("{title}", titleSlug, StringComparison.Ordinal);
         return Path.Combine(outputDirectory, folderName);
@@ -52,21 +46,17 @@ public static class ArticleFileNaming
 
     public static string BuildLegacyOutputPath(
         string outputDirectory,
-        string finalOutput,
         string feedSlug,
         string titleSlug)
     {
-        var fileName = GetLegacyFilenameTemplate(finalOutput)
+        var fileName = GetLegacyFilenameTemplate()
             .Replace("{feed}", feedSlug, StringComparison.Ordinal)
             .Replace("{title}", titleSlug, StringComparison.Ordinal);
         return Path.Combine(outputDirectory, fileName);
     }
 
-    public static string BuildBodyAudioPath(string finalOutput, string articleFolder)
-    {
-        var usesBodyFilename = Path.GetFileName(finalOutput).Equals("body.mp3", StringComparison.OrdinalIgnoreCase);
-        return Path.Combine(articleFolder, usesBodyFilename ? Path.GetFileName(finalOutput) : "body.mp3");
-    }
+    public static string BuildBodyAudioPath(string articleFolder) =>
+        Path.Combine(articleFolder, "body.mp3");
 
     public static string BuildFeedSlug(string feedUrl)
     {

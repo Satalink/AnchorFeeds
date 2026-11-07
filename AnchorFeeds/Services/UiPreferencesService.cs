@@ -7,6 +7,7 @@ namespace AnchorFeeds.Services;
 public sealed class UiPreferencesService
 {
     public const double DefaultArticleListWidthRatio = 0.4;
+    public const double DefaultNavigationPaneWidth = 240;
 
     private static readonly Regex LegacyArticleListWidthPattern = new(
         @"(?m)^article_list_width_ratio[ \t]*:[ \t]*(?<value>[^\r\n]+)(?<lineEnding>\r?\n|$)");
@@ -29,6 +30,45 @@ public sealed class UiPreferencesService
         }
 
         return LoadLegacyRatio(settingsPath) ?? DefaultArticleListWidthRatio;
+    }
+
+    public double LoadNavigationPaneWidth() =>
+        ValidateNavigationPaneWidth(LoadPreferences().NavigationPaneWidth);
+
+    public bool LoadNavigationPaneCollapsed() =>
+        LoadPreferences().NavigationPaneCollapsed;
+
+    public void SaveNavigationPaneWidth(double width)
+    {
+        var preferences = LoadPreferences();
+        preferences.NavigationPaneWidth = ValidateNavigationPaneWidth(width);
+        SavePreferences(preferences);
+    }
+
+    public void SaveNavigationPaneCollapsed(bool collapsed)
+    {
+        var preferences = LoadPreferences();
+        preferences.NavigationPaneCollapsed = collapsed;
+        SavePreferences(preferences);
+    }
+
+    private UiPreferences LoadPreferences()
+    {
+        if (!File.Exists(_preferencesPath))
+        {
+            return new UiPreferences();
+        }
+
+        return JsonSerializer.Deserialize<UiPreferences>(File.ReadAllText(_preferencesPath))
+            ?? throw new InvalidDataException($"Could not read UI preferences from {_preferencesPath}.");
+    }
+
+    private void SavePreferences(UiPreferences preferences)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(_preferencesPath)!);
+        var tempPath = _preferencesPath + ".tmp";
+        File.WriteAllText(tempPath, JsonSerializer.Serialize(preferences));
+        File.Move(tempPath, _preferencesPath, true);
     }
 
     private static double? LoadLegacyRatio(string settingsPath)
@@ -80,8 +120,20 @@ public sealed class UiPreferencesService
         return ratio;
     }
 
+    private static double ValidateNavigationPaneWidth(double width)
+    {
+        if (!double.IsFinite(width) || width is < 160 or > 600)
+        {
+            throw new InvalidDataException("The saved navigation-pane width must be between 160 and 600.");
+        }
+
+        return width;
+    }
+
     private sealed class UiPreferences
     {
         public double ArticleListWidthRatio { get; set; } = DefaultArticleListWidthRatio;
+        public double NavigationPaneWidth { get; set; } = DefaultNavigationPaneWidth;
+        public bool NavigationPaneCollapsed { get; set; }
     }
 }

@@ -1,0 +1,74 @@
+<Window x:Class="AnchorFeeds.FeedPropertiesWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Feed Properties" Height="460" Width="560" MinHeight="360" MinWidth="460"
+        WindowStartupLocation="CenterOwner" ResizeMode="CanResizeWithGrip"
+        Background="{DynamicResource WindowBackgroundBrush}"
+        Foreground="{DynamicResource TextPrimaryBrush}">
+    <Window.Resources>
+        <Style x:Key="PillStyle" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource ElevatedBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="8,3" />
+            <Setter Property="Margin" Value="0,0,6,6" />
+        </Style>
+        <DataTemplate x:Key="CategoryPillTemplate">
+            <Border Style="{StaticResource PillStyle}">
+                <DockPanel LastChildFill="True">
+                    <Button DockPanel.Dock="Right" Content="×" Tag="{Binding}"
+                            Padding="3,0" Margin="6,0,0,0" BorderThickness="0"
+                            Background="Transparent" Foreground="{DynamicResource TextSecondaryBrush}"
+                            Click="RemoveFavoriteButton_Click" />
+                    <TextBlock Text="{Binding}" VerticalAlignment="Center" />
+                </DockPanel>
+            </Border>
+        </DataTemplate>
+        <DataTemplate x:Key="BlockedPillTemplate">
+            <Border Style="{StaticResource PillStyle}">
+                <DockPanel LastChildFill="True">
+                    <Button DockPanel.Dock="Right" Content="×" Tag="{Binding}"
+                            Padding="3,0" Margin="6,0,0,0" BorderThickness="0"
+                            Background="Transparent" Foreground="{DynamicResource TextSecondaryBrush}"
+                            Click="RemoveBlockedButton_Click" />
+                    <TextBlock Text="{Binding}" VerticalAlignment="Center" />
+                </DockPanel>
+            </Border>
+        </DataTemplate>
+    </Window.Resources>
+    <DockPanel Margin="18">
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right"
+                    Margin="0,14,0,0">
+            <Button Content="Cancel" IsCancel="True" Padding="18,7" Margin="0,0,8,0" />
+            <Button Content="Save" IsDefault="True" Padding="18,7" Click="SaveButton_Click" />
+        </StackPanel>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <TextBlock x:Name="FeedNameText" FontSize="20" FontWeight="SemiBold" />
+                <TextBlock x:Name="FeedUrlText" Margin="0,2,0,12"
+                           Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                <TextBlock Text="Right-click an article in the Feed Library title list to favorite or block categories from that item. Remove categories here to clear their setting."
+                           Margin="0,0,0,14" TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                <TextBlock Text="Favorite categories" FontWeight="SemiBold" />
+                <ItemsControl x:Name="FavoriteCategoriesItems" Margin="0,6,0,10"
+                              ItemTemplate="{StaticResource CategoryPillTemplate}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+                <TextBlock Text="Blocked categories" FontWeight="SemiBold" />
+                <ItemsControl x:Name="BlockedCategoriesItems" Margin="0,6,0,10"
+                              ItemTemplate="{StaticResource BlockedPillTemplate}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+                <TextBlock Text="Blocked categories prevent matching new feed items from being added. Existing library items are not deleted. Favorite categories are used by the Favorites filter and blue ribbon."
+                           Margin="0,14,0,0" TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

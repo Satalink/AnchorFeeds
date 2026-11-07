@@ -1,0 +1,44 @@
+<Window x:Class="AnchorFeeds.TickerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="AnchorFeeds Ticker"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        Topmost="True"
+        Focusable="False"
+        Background="#E6101418">
+    <Grid ClipToBounds="True">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <Canvas x:Name="TickerCanvas" Grid.Column="0" ClipToBounds="True">
+            <StackPanel x:Name="ItemsPanel" Orientation="Horizontal" Canvas.Left="0" Canvas.Top="0" />
+        </Canvas>
+        <Grid x:Name="ControlsBox" Grid.Column="1">
+            <Border BorderThickness="1,0,0,0" BorderBrush="#90FFFFFF">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                        <GradientStop Color="#FF343D48" Offset="0" />
+                        <GradientStop Color="#FF1E252C" Offset="1" />
+                    </LinearGradientBrush>
+                </Border.Background>
+                <Border.Effect>
+                    <DropShadowEffect Direction="180" ShadowDepth="3" BlurRadius="10" Opacity="0.85" Color="Black" />
+                </Border.Effect>
+            </Border>
+            <Border Width="4" HorizontalAlignment="Left" Margin="1,0,0,0" IsHitTestVisible="False">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                        <GradientStop Color="#40FFFFFF" Offset="0" />
+                        <GradientStop Color="#00FFFFFF" Offset="1" />
+                    </LinearGradientBrush>
+                </Border.Background>
+            </Border>
+            <UniformGrid x:Name="ControlsPanel" Rows="2" Columns="2" Margin="6,0,2,0" VerticalAlignment="Center" HorizontalAlignment="Left" />
+        </Grid>
+        <Border x:Name="ResizeGrip" Grid.ColumnSpan="2" Height="4" Background="Transparent" BorderBrush="#40FFFFFF" Cursor="SizeNS" />
+    </Grid>
+</Window>

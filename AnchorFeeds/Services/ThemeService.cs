@@ -1,6 +1,7 @@
 using Microsoft.Win32;
 using System.Windows;
 using System.Windows.Media;
+using Color = System.Windows.Media.Color;
 
 namespace AnchorFeeds.Services;
 
@@ -75,6 +76,7 @@ public static class ThemeService
         var resources = Application.Current.Resources;
         resources["WindowBackgroundBrush"] = Brush(palette.WindowBackground);
         resources["SurfaceBackgroundBrush"] = Brush(palette.SurfaceBackground);
+        resources["ReadArticleBackgroundBrush"] = DarkenBrush(palette.SurfaceBackground, 0.71);
         resources["ElevatedBackgroundBrush"] = Brush(palette.ElevatedBackground);
         resources["TextPrimaryBrush"] = Brush(palette.TextPrimary);
         resources["TextSecondaryBrush"] = Brush(palette.TextSecondary);
@@ -153,6 +155,19 @@ public static class ThemeService
     }
 
     private static string ColorString(Color color) => color.ToString();
+
+    private static SolidColorBrush DarkenBrush(string color, double factor)
+    {
+        var source = (Color)ColorConverter.ConvertFromString(color);
+        var darkened = Color.FromArgb(
+            source.A,
+            (byte)Math.Round(source.R * factor),
+            (byte)Math.Round(source.G * factor),
+            (byte)Math.Round(source.B * factor));
+        var brush = new SolidColorBrush(darkened);
+        brush.Freeze();
+        return brush;
+    }
 
     private static SolidColorBrush Brush(string color)
     {
