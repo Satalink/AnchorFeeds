@@ -20,7 +20,6 @@ namespace AnchorFeeds;
 
 public partial class MainWindow : Window
 {
-    private const double ArticleTextInitialScrollLag = 0.03;
     private const int WmNcRightButtonUp = 0x00A5;
     private const int WmMouseHorizontalWheel = 0x020E;
     private const int WmAppCommand = 0x0319;
@@ -132,6 +131,7 @@ public partial class MainWindow : Window
     private double _playerVolume = 1;
     private bool _audioSourceReady;
     private bool _isSeeking;
+    private bool _articleWheelPending;
     private bool _restoreMuteAfterPlayback;
     private bool _playBodyAudioOnNextSelection;
     private bool _initializing;
@@ -1092,28 +1092,38 @@ public partial class MainWindow : Window
 
     private void SeekAudio(TimeSpan offset)
     {
-        if (_currentArticle is null ||
-            AudioPlayer.Source is null ||
-            _audioSegment is not (AudioSegment.Title or AudioSegment.Body) ||
-            !AudioPlayer.NaturalDuration.HasTimeSpan)
+        if (!CanSeekAudio())
+        {
+            return;
+        }
+
+        SeekToAudioPosition(AudioPlayer.Position + offset);
+    }
+
+    private bool CanSeekAudio() =>
+        _currentArticle is not null &&
+        _audioSourceReady &&
+        AudioPlayer.Source is not null &&
+        _audioSegment is AudioSegment.Title or AudioSegment.Body &&
+        AudioPlayer.NaturalDuration.HasTimeSpan &&
+        AudioPlayer.NaturalDuration.TimeSpan > TimeSpan.Zero;
+
+    private void SeekToAudioPosition(TimeSpan position, bool scrollText = true)
+    {
+        if (!CanSeekAudio())
         {
             return;
         }
 
         var duration = AudioPlayer.NaturalDuration.TimeSpan;
-        var target = AudioPlayer.Position + offset;
-        if (target < TimeSpan.Zero)
-        {
-            target = TimeSpan.Zero;
-        }
-        else if (target > duration)
-        {
-            target = duration;
-        }
-
+        var target = TimeSpan.FromTicks(Math.Clamp(position.Ticks, 0, duration.Ticks));
         AudioPlayer.Position = target;
         PositionSlider.Value = target.TotalSeconds;
         PositionText.Text = FormatTime(target);
+        if (scrollText && _audioSegment == AudioSegment.Body)
+        {
+            ScrollArticleTextToProgress(target.TotalSeconds / duration.TotalSeconds);
+        }
     }
 
     private void AdjustPlayerVolume(double amount)
@@ -1867,6 +1877,40 @@ public partial class MainWindow : Window
         var hasSelection = !string.IsNullOrWhiteSpace(GetSelectedArticleText());
         ArticleTextSearchMenuItem.IsEnabled = hasSelection;
         ArticleTextCopyMenuItem.IsEnabled = hasSelection;
+    }
+
+    private void ArticleTextContent_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (_articleWheelPending || _audioSegment != AudioSegment.Body || !CanSeekAudio())
+        {
+            return;
+        }
+
+        var scrollViewer = FindArticleTextScrollViewer();
+        if (scrollViewer is null || scrollViewer.ScrollableHeight <= 0)
+        {
+            return;
+        }
+
+        var previousOffset = scrollViewer.VerticalOffset;
+        var article = _currentArticle;
+        var source = AudioPlayer.Source;
+        _articleWheelPending = true;
+        Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(() =>
+        {
+            _articleWheelPending = false;
+            if (ReferenceEquals(article, _currentArticle) &&
+                source == AudioPlayer.Source &&
+                _audioSegment == AudioSegment.Body &&
+                CanSeekAudio() &&
+                scrollViewer.ScrollableHeight > 0 &&
+                scrollViewer.VerticalOffset != previousOffset)
+            {
+                var progress = Math.Clamp(scrollViewer.VerticalOffset / scrollViewer.ScrollableHeight, 0, 1);
+                SeekToAudioPosition(TimeSpan.FromSeconds(AudioPlayer.NaturalDuration.TimeSpan.TotalSeconds * progress),
+                    scrollText: false);
+            }
+        }));
     }
 
     private void ArticleTextSearchMenuItem_Click(object sender, RoutedEventArgs e)
@@ -3654,7 +3698,7 @@ public partial class MainWindow : Window
 
     private void PositionTimer_Tick(object? sender, EventArgs e)
     {
-        if (_isSeeking || !_isPlaying)
+        if (_isSeeking || _articleWheelPending || !_isPlaying)
         {
             return;
         }
@@ -3676,24 +3720,99 @@ public partial class MainWindow : Window
                 position.TotalSeconds / AudioPlayer.NaturalDuration.TimeSpan.TotalSeconds,
                 0,
                 1);
-            var scrollLag = ArticleTextInitialScrollLag * (1 - progress);
-            var scrollProgress = Math.Max(0, progress - scrollLag);
-            var scrollViewer = FindArticleTextScrollViewer();
-            if (scrollViewer is not null)
+            ScrollArticleTextToProgress(progress);
+        }
+    }
+
+    private void ScrollArticleTextToProgress(double progress)
+    {
+        var scrollViewer = FindArticleTextScrollViewer();
+        if (scrollViewer is not null)
+        {
+            scrollViewer.ScrollToVerticalOffset(scrollViewer.ScrollableHeight * Math.Clamp(progress, 0, 1));
+        }
+    }
+
+    private void PositionSlider_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (!CanSeekAudio() || !PositionSlider.CaptureMouse())
+        {
+            return;
+        }
+
+        PositionSlider.Focus();
+        _isSeeking = true;
+        SeekFromSliderPoint(e);
+        e.Handled = true;
+    }
+
+    private void PositionSlider_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (_isSeeking && e.LeftButton == MouseButtonState.Pressed)
+        {
+            SeekFromSliderPoint(e);
+            e.Handled = true;
+        }
+    }
+
+    private void PositionSlider_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!_isSeeking)
+        {
+            return;
+        }
+
+        SeekFromSliderPoint(e);
+        _isSeeking = false;
+        PositionSlider.ReleaseMouseCapture();
+        e.Handled = true;
+    }
+
+    private void PositionSlider_LostMouseCapture(object sender, MouseEventArgs e)
+    {
+        _isSeeking = false;
+    }
+
+    private void SeekFromSliderPoint(MouseEventArgs e)
+    {
+        if (!CanSeekAudio())
+        {
+            return;
+        }
+
+        PositionSlider.ApplyTemplate();
+        if (PositionSlider.Template.FindName("PART_Track", PositionSlider) is Track track)
+        {
+            var value = track.ValueFromPoint(e.GetPosition(track));
+            if (double.IsFinite(value))
             {
-                scrollViewer.ScrollToVerticalOffset(scrollViewer.ScrollableHeight * scrollProgress);
+                SeekToAudioPosition(TimeSpan.FromSeconds(Math.Clamp(value, 0, PositionSlider.Maximum)));
             }
         }
     }
 
-    private void PositionSlider_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e) => _isSeeking = true;
-
-    private void PositionSlider_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    private void PositionSlider_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        _isSeeking = false;
-        if (_currentArticle is not null && AudioPlayer.Source is not null)
+        if (!CanSeekAudio())
         {
-            AudioPlayer.Position = TimeSpan.FromSeconds(PositionSlider.Value);
+            return;
+        }
+
+        var duration = AudioPlayer.NaturalDuration.TimeSpan;
+        var target = e.Key switch
+        {
+            Key.Left or Key.Down => AudioPlayer.Position - duration * 0.01,
+            Key.Right or Key.Up => AudioPlayer.Position + duration * 0.01,
+            Key.PageDown => AudioPlayer.Position - duration * 0.1,
+            Key.PageUp => AudioPlayer.Position + duration * 0.1,
+            Key.Home => TimeSpan.Zero,
+            Key.End => duration,
+            _ => (TimeSpan?)null
+        };
+        if (target is not null)
+        {
+            SeekToAudioPosition(target.Value);
+            e.Handled = true;
         }
     }
 

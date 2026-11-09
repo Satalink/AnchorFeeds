@@ -647,6 +647,7 @@
                                                       IsSelectionEnabled="True"
                                                       IsToolBarVisible="False"
                                                       Background="Transparent"
+                                                      PreviewMouseWheel="ArticleTextContent_PreviewMouseWheel"
                                                       ContextMenuOpening="ArticleTextContent_ContextMenuOpening">
                                 <FlowDocumentScrollViewer.ContextMenu>
                                     <ContextMenu>
@@ -712,9 +713,14 @@
                         </StackPanel>
                         <StackPanel>
                             <Slider x:Name="PositionSlider" Minimum="0" Maximum="1"
+                                    ToolTip="Click or drag to seek; use arrow keys for fine adjustments"
+                                    AutomationProperties.Name="Playback position"
                                     ValueChanged="PositionSlider_ValueChanged"
                                     PreviewMouseLeftButtonDown="PositionSlider_PreviewMouseLeftButtonDown"
-                                    PreviewMouseLeftButtonUp="PositionSlider_PreviewMouseLeftButtonUp" />
+                                    PreviewMouseMove="PositionSlider_PreviewMouseMove"
+                                    PreviewMouseLeftButtonUp="PositionSlider_PreviewMouseLeftButtonUp"
+                                    LostMouseCapture="PositionSlider_LostMouseCapture"
+                                    PreviewKeyDown="PositionSlider_PreviewKeyDown" />
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
