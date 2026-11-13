@@ -1,6 +1,7 @@
 <Window x:Class="AnchorFeeds.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:AnchorFeeds"
         xmlns:services="clr-namespace:AnchorFeeds.Services"
         Title="AnchorFeeds" Height="760" Width="1120" MinHeight="600" MinWidth="850"
         Icon="/Assets/AnchorFeeds.ico"
@@ -9,6 +10,23 @@
         PreviewMouseDown="MainWindow_PreviewMouseDown"
         Background="{DynamicResource WindowBackgroundBrush}"
         Foreground="{DynamicResource TextPrimaryBrush}">
+    <Window.Resources>
+        <Style x:Key="KeywordPillButtonStyle" TargetType="Button">
+            <Setter Property="Padding" Value="8,3" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="12"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              TextElement.Foreground="{TemplateBinding Foreground}" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
     <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="0" />
@@ -335,8 +353,18 @@
                                                 </Style>
                                             </Button.Style>
                                         </Button>
-                                        <DockPanel Grid.Row="1" Margin="0,4,0,0">
-                                            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Bottom">
+                                        <StackPanel Grid.Row="1" Margin="0,4,0,0">
+                                            <TextBlock Text="{Binding FeedDisplayName}" Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       FontSize="11" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding RelativeDateTime}"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" />
+                                            <Grid Margin="0,2,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                                                 <Button Content="{Binding StarLabel}" Tag="{Binding}"
                                                         Padding="4,0" BorderThickness="0" Background="Transparent"
                                                         ToolTip="Toggle article star" FontSize="18" FontFamily="Segoe UI Symbol"
@@ -369,12 +397,12 @@
                                                           Data="M 8,3 H 16 L 17,5 H 21 V 7 H 3 V 5 H 7 Z M 5,9 H 19 L 18,21 H 6 Z M 9,11 V 18 H 11 V 11 Z M 13,11 V 18 H 15 V 11 Z" />
                                                 </Button>
                                             </StackPanel>
-                                            <StackPanel VerticalAlignment="Bottom">
-                                                <TextBlock Text="{Binding FeedDisplayName}" Foreground="{DynamicResource TextSecondaryBrush}"
-                                                           FontSize="11" TextTrimming="CharacterEllipsis" />
-                                                <TextBlock Text="{Binding RelativeDateTime}"
-                                                           Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" />
-                                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                                <local:KeywordPillPanel Grid.Column="1" Pills="{Binding MatchedKeywords}"
+                                                                        VerticalAlignment="Center"
+                                                                        HideRequested="KeywordPills_HideRequested"
+                                                                        EditRequested="KeywordPills_EditRequested"
+                                                                        DeleteRequested="KeywordPills_DeleteRequested" />
+                                                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                                                     <Path Width="14" Height="12" Margin="0,0,5,0"
                                                           Stroke="{DynamicResource TextSecondaryBrush}"
                                                           StrokeThickness="1.3" StrokeLineJoin="Round"
@@ -426,8 +454,8 @@
                                                         </Path.Style>
                                                     </Path>
                                                 </StackPanel>
-                                            </StackPanel>
-                                        </DockPanel>
+                                            </Grid>
+                                        </StackPanel>
                                     </Grid>
                                     <Grid Grid.Column="0" Width="36" Height="36"
                                           HorizontalAlignment="Left" VerticalAlignment="Top"

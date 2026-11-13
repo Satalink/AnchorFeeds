@@ -10,15 +10,17 @@ public sealed class AudioLibraryService
 
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
     private readonly AppSettings _settings;
+    private readonly FeedCategoryPreferencesService _categoryPreferences;
     private readonly string _outputDirectory;
     private readonly string _statePath;
     private readonly Dictionary<string, LibraryEntryState> _savedEntries;
     private readonly System.Text.RegularExpressions.Regex _filenameRegex;
     private readonly System.Text.RegularExpressions.Regex _articleFolderRegex;
 
-    public AudioLibraryService(AppSettings settings, string applicationDirectory)
+    public AudioLibraryService(AppSettings settings, string applicationDirectory, FeedCategoryPreferencesService categoryPreferences)
     {
         _settings = settings;
+        _categoryPreferences = categoryPreferences;
         _outputDirectory = ArticleFileNaming.ResolveOutputDirectory(applicationDirectory, settings.OutputDirectory);
         _filenameRegex = ArticleFileNaming.BuildFilenameRegex(
             ArticleFileNaming.GetLegacyFilenameTemplate());
@@ -410,21 +412,58 @@ public sealed class AudioLibraryService
     private int RemoveExpiredFiles()
     {
         var removed = 0;
-        var cutoff = DateTime.Now.Subtract(_settings.RetentionPeriod);
+        var now = DateTime.Now;
+        var favoriteMatcher = new PhraseMatcher(_settings.FavoritedPhrases);
+        var favoriteCategoriesByFeed = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var currentItems = Items.ToDictionary(item => item.FilePath, StringComparer.OrdinalIgnoreCase);
         foreach (var file in EnumerateArticleAudioFiles().ToList())
         {
             var fullPath = Path.GetFullPath(file);
-            var isStarred = Items.FirstOrDefault(item =>
-                                item.FilePath.Equals(fullPath, StringComparison.OrdinalIgnoreCase))
-                                ?.IsStarred ??
-                            (_savedEntries.TryGetValue(fullPath, out var saved) && saved.IsStarred);
-            if (isStarred || (File.Exists(file) ? File.GetCreationTime(file) : Directory.GetCreationTime(Path.GetDirectoryName(file)!)) >= cutoff)
+            currentItems.TryGetValue(fullPath, out var item);
+            _savedEntries.TryGetValue(fullPath, out var saved);
+            var isStarred = item?.IsStarred ?? saved?.IsStarred ?? false;
+            var folder = Path.GetDirectoryName(file);
+            var isFolderAudio = Path.GetFileName(file).Equals("body.mp3", StringComparison.OrdinalIgnoreCase);
+            var nameMatch = isFolderAudio
+                ? _articleFolderRegex.Match(Path.GetFileName(folder!))
+                : _filenameRegex.Match(Path.GetFileName(file));
+            var feed = item?.Feed ?? saved?.Feed;
+            if (string.IsNullOrWhiteSpace(feed))
+            {
+                feed = ArticleFileNaming.ReadableSlug(nameMatch.Groups["feed"].Value);
+            }
+            var feedUrl = item?.FeedUrl ?? saved?.FeedUrl;
+            feedUrl = FindFeedConfiguration(feedUrl, feed)?.Url ?? feedUrl ?? string.Empty;
+            if (!favoriteCategoriesByFeed.TryGetValue(feedUrl, out var favoriteCategories))
+            {
+                favoriteCategories = new HashSet<string>(
+                    _categoryPreferences.Get(feedUrl).FavoriteCategories, StringComparer.OrdinalIgnoreCase);
+                favoriteCategoriesByFeed.Add(feedUrl, favoriteCategories);
+            }
+            var title = item?.Title ?? saved?.Title;
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                title = ArticleFileNaming.ReadableSlug(nameMatch.Groups["title"].Value);
+            }
+            var isFavorite = (item?.Categories ?? saved?.Categories ?? []).Any(favoriteCategories.Contains) ||
+                favoriteMatcher.IsMatch(title, item?.AudioText ?? saved?.AudioText);
+            var retention = isStarred ? _settings.StarredRetentionPeriod
+                : isFavorite ? _settings.FavoritesRetentionPeriod
+                : _settings.RetentionPeriod;
+            if (isStarred && isFavorite)
+            {
+                retention = _settings.StarredRetentionPeriod is { } starred &&
+                            _settings.FavoritesRetentionPeriod is { } favorite
+                    ? (starred > favorite ? starred : favorite)
+                    : null;
+            }
+            var createdAt = File.Exists(file) ? File.GetCreationTime(file) : Directory.GetCreationTime(folder!);
+            if (retention is null || now - createdAt <= retention.Value)
             {
                 continue;
             }
             removed++;
 
-            var folder = Path.GetDirectoryName(file);
             if (folder is not null &&
                 string.Equals(Path.GetDirectoryName(folder), _outputDirectory, StringComparison.OrdinalIgnoreCase))
             {

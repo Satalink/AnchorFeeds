@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Globalization;
 using System.Net.Http;
 using System.ComponentModel;
@@ -60,6 +60,8 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _relativeTimeTimer = new();
     private readonly DispatcherTimer _scanCountdownTimer = new();
     private readonly DispatcherTimer _feedUpdateTimer = new();
+    private TimeSpan _feedUpdateRetryInterval;
+    private DateTimeOffset? _lastAutomaticUpdateFailure;
     private bool _isRetrievingFeeds;
     private bool _isRebuildingArticle;
     private CancellationTokenSource? _feedUpdateCancellation;
@@ -356,7 +358,7 @@ public partial class MainWindow : Window
             navigationPaneWidth = uiPreferencesService.LoadNavigationPaneWidth();
             navigationPaneCollapsed = uiPreferencesService.LoadNavigationPaneCollapsed();
             settings = settingsService.Load();
-            library = new AudioLibraryService(settings, AppContext.BaseDirectory);
+            library = new AudioLibraryService(settings, AppContext.BaseDirectory, _feedCategoryPreferences);
             library.Refresh();
             generator = new NewsGenerationService(settings, AppContext.BaseDirectory, _feedCategoryPreferences);
             _settings = settings;
@@ -716,6 +718,7 @@ public partial class MainWindow : Window
                 generatedArticles,
                 _feedUpdateCancellation.Token,
                 automatic: automatic);
+            _lastAutomaticUpdateFailure = null;
             _library.Refresh();
             ApplyFavoriteCategoryFlags();
             UpdateFilter();
@@ -763,6 +766,10 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
+            if (automatic)
+            {
+                _lastAutomaticUpdateFailure = DateTimeOffset.UtcNow;
+            }
             DiagnosticLog.Exception("Feed update failed", ex);
             var stackLines = (ex.StackTrace ?? string.Empty)
                 .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -818,12 +825,14 @@ public partial class MainWindow : Window
             .Select(period => period!.Value)
             .DefaultIfEmpty(TimeSpan.Zero)
             .Min();
+        _feedUpdateRetryInterval = interval;
+        _lastAutomaticUpdateFailure = null;
         if (interval <= TimeSpan.Zero)
         {
             return;
         }
 
-        _feedUpdateTimer.Interval = interval;
+        _feedUpdateTimer.Interval = TimeSpan.FromSeconds(Math.Min(interval.TotalSeconds, 10));
         _feedUpdateTimer.Tick -= FeedUpdateTimer_Tick;
         _feedUpdateTimer.Tick += FeedUpdateTimer_Tick;
         _feedUpdateTimer.Start();
@@ -832,6 +841,13 @@ public partial class MainWindow : Window
     private async void FeedUpdateTimer_Tick(object? sender, EventArgs e)
     {
         if (_isRetrievingFeeds || OwnedWindows.Count > 0)
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        if ((_lastAutomaticUpdateFailure is { } failedAt && now - failedAt < _feedUpdateRetryInterval) ||
+            !_generator.HasDueFeeds(now))
         {
             return;
         }
@@ -921,6 +937,7 @@ public partial class MainWindow : Window
         _currentArticle = null;
         ArticleList.SelectedItem = null;
         var removed = _library.Prune();
+        ApplyFavoriteCategoryFlags();
         ResetAfterLibraryChange();
         return $"Pruned {removed} expired article(s). {_library.Items.Count} remain.";
     }
@@ -942,7 +959,9 @@ public partial class MainWindow : Window
         UpdateSystemMediaTransportControls();
     }
 
-    private void SettingsButton_Click(object sender, RoutedEventArgs e)
+    private void SettingsButton_Click(object sender, RoutedEventArgs e) => OpenSettings();
+
+    private void OpenSettings(bool selectFeeds = false)
     {
         var currentLanguage = _settings.ApplicationLanguage;
         var dialog = new SettingsWindow(_settings, _feedCategoryPreferences)
@@ -951,6 +970,10 @@ public partial class MainWindow : Window
             RebuildLibrary = RebuildLibrary,
             PruneLibrary = PruneLibrary
         };
+        if (selectFeeds)
+        {
+            dialog.SelectFeedsTab();
+        }
         if (dialog.ShowDialog() != true || dialog.UpdatedSettings is not { } updatedSettings)
         {
             return;
@@ -986,7 +1009,7 @@ public partial class MainWindow : Window
             ThemeService.Apply(_settings.AppearanceTheme);
             ApplyInterfaceTypography();
             UpdateScanModeButton();
-            _library = new AudioLibraryService(_settings, AppContext.BaseDirectory);
+            _library = new AudioLibraryService(_settings, AppContext.BaseDirectory, _feedCategoryPreferences);
             _library.Refresh();
             _generator = new NewsGenerationService(_settings, AppContext.BaseDirectory, _feedCategoryPreferences);
             ConfigureFeedUpdateTimer();
@@ -1868,6 +1891,11 @@ public partial class MainWindow : Window
             fallbackText,
             _settings.ArticleTextFontFamily,
             _settings.ArticleTextFontSize);
+        if (document.Blocks.Count > 0)
+        {
+            document.Blocks.InsertBefore(document.Blocks.FirstBlock, new Paragraph(new Run(string.Empty)) { Margin = new Thickness(0) });
+        }
+
         document.SetResourceReference(TextElement.ForegroundProperty, "ArticleTextForegroundBrush");
         ArticleTextContent.Document = document;
     }
@@ -2845,6 +2873,14 @@ public partial class MainWindow : Window
 
     private void ArticleItem_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
+        for (var source = e.OriginalSource as DependencyObject; source is Visual or System.Windows.Media.Media3D.Visual3D; source = VisualTreeHelper.GetParent(source))
+        {
+            if (source is KeywordPillPanel)
+            {
+                return;
+            }
+        }
+
         if (sender is not FrameworkElement { DataContext: ArticleAudio article } element)
         {
             return;
@@ -2996,18 +3032,11 @@ public partial class MainWindow : Window
                 _library.Delete(article);
             }
 
-            var favoriteCategories = new HashSet<string>(
-                _feedCategoryPreferences.Get(action.FeedUrl).FavoriteCategories,
-                StringComparer.OrdinalIgnoreCase);
-            var phraseMatcher = new PhraseMatcher(_settings.FavoritedPhrases);
-            foreach (var article in _library.Items.Where(item =>
-                         item.FeedUrl.Equals(action.FeedUrl, StringComparison.OrdinalIgnoreCase)))
-            {
-                article.IsFavoriteCategory = article.Categories.Any(favoriteCategories.Contains) ||
-                    phraseMatcher.IsMatch(article.Title, article.AudioText);
-            }
+            ApplyFavoriteCategoryFlags(_library.Items.Where(item =>
+                item.FeedUrl.Equals(action.FeedUrl, StringComparison.OrdinalIgnoreCase)));
 
             UpdateFilter();
+            RefreshTickerArticles();
             if (blockingCategory)
             {
                 StatusText.Text = $"Removed {articlesToRemove.Count} article(s) in category {action.Category}.";
@@ -4017,7 +4046,8 @@ public partial class MainWindow : Window
     private void ApplyFavoriteCategoryFlags(IEnumerable<ArticleAudio>? articles = null)
     {
         var targets = (articles ?? _library.Items).ToList();
-        var phraseMatcher = new PhraseMatcher(_settings.FavoritedPhrases);
+        var favoritePhraseMatcher = new PhraseMatcher(_settings.FavoritedPhrases);
+        var starPhraseMatcher = new PhraseMatcher(_settings.StarredPhrases);
         foreach (var group in targets.GroupBy(article => article.FeedUrl, StringComparer.OrdinalIgnoreCase))
         {
             var favoriteCategories = new HashSet<string>(
@@ -4025,10 +4055,112 @@ public partial class MainWindow : Window
                 StringComparer.OrdinalIgnoreCase);
             foreach (var article in group)
             {
-                article.IsFavoriteCategory = article.Categories.Any(favoriteCategories.Contains) ||
-                    phraseMatcher.IsMatch(article.Title, article.AudioText);
+                var matchingCategories = article.Categories
+                    .Where(favoriteCategories.Contains)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                article.IsFavoriteCategory = matchingCategories.Count > 0 ||
+                    favoritePhraseMatcher.IsMatch(article.Title, article.AudioText);
+                article.SetMatchedPills(
+                    _settings.ShowMatchingKeywords ? favoritePhraseMatcher.FindMatches(article.Title) : [],
+                    _settings.ShowMatchingKeywords ? starPhraseMatcher.FindMatches(article.Title) : [],
+                    _settings.ShowMatchingKeywords ? matchingCategories : []);
             }
         }
+    }
+
+    private void KeywordPills_HideRequested(object? sender, EventArgs e)
+    {
+        try
+        {
+            _settingsService.SaveShowMatchingKeywords(false);
+            _settings.ShowMatchingKeywords = false;
+            ApplyFavoriteCategoryFlags();
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLog.Exception("Could not hide matching keywords", ex);
+            MessageBox.Show(this, ex.Message, "Could not hide matching keywords", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void KeywordPills_EditRequested(object? sender, EventArgs e) => OpenSettings(selectFeeds: true);
+
+    private void KeywordPills_DeleteRequested(object? sender, KeywordPillEventArgs e)
+    {
+        if (e.Pill.Kind == KeywordPillKind.FavoriteCategory)
+        {
+            if (sender is not KeywordPillPanel { DataContext: ArticleAudio article })
+            {
+                throw new InvalidOperationException("The article for this category is unavailable.");
+            }
+
+            try
+            {
+                var preferences = _feedCategoryPreferences.Get(article.FeedUrl);
+                _feedCategoryPreferences.SavePreferences([
+                    preferences with
+                    {
+                        FavoriteCategories = preferences.FavoriteCategories.Where(category =>
+                            !category.Equals(e.Pill.Phrase, StringComparison.OrdinalIgnoreCase)).ToList()
+                    }
+                ]);
+                ApplyFavoriteCategoryFlags(_library.Items.Where(item =>
+                    item.FeedUrl.Equals(article.FeedUrl, StringComparison.OrdinalIgnoreCase)));
+                UpdateFilter();
+                RefreshTickerArticles();
+            }
+            catch (Exception ex)
+            {
+                DiagnosticLog.Exception("Could not remove favorite category", ex);
+                MessageBox.Show(this, ex.Message, "Could not remove favorite category", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            return;
+        }
+
+        var isFavorite = e.Pill.Kind == KeywordPillKind.FavoriteKeyword;
+        var oldPhrases = isFavorite ? _settings.FavoritedPhrases : _settings.StarredPhrases;
+        static string Normalize(string phrase) =>
+            string.Join(" ", phrase.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        var updatedPhrases = oldPhrases.Where(phrase =>
+            !string.Equals(Normalize(phrase), Normalize(e.Pill.Phrase), StringComparison.OrdinalIgnoreCase)).ToList();
+        if (updatedPhrases.Count == oldPhrases.Count)
+        {
+            MessageBox.Show(this, "The keyword is no longer in settings.", "Could not delete keyword", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        if (isFavorite)
+        {
+            _settings.FavoritedPhrases = updatedPhrases;
+        }
+        else
+        {
+            _settings.StarredPhrases = updatedPhrases;
+        }
+
+        try
+        {
+            _settingsService.SaveAll(_settings);
+        }
+        catch (Exception ex)
+        {
+            if (isFavorite)
+            {
+                _settings.FavoritedPhrases = oldPhrases;
+            }
+            else
+            {
+                _settings.StarredPhrases = oldPhrases;
+            }
+            DiagnosticLog.Exception("Could not delete keyword", ex);
+            MessageBox.Show(this, ex.Message, "Could not delete keyword", MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
+
+        ApplyFavoriteCategoryFlags();
+        UpdateFilter();
+        RefreshTickerArticles();
     }
 
     private void UpdateLibraryCounts()
@@ -4608,6 +4740,7 @@ public partial class MainWindow : Window
 
         _imageLoadCancellation?.Cancel();
         _imageLoadCancellation?.Dispose();
+        _feedUpdateTimer.Stop();
         _relativeTimeTimer.Stop();
         AudioMuteService.MuteChanged -= AudioMuteService_MuteChanged;
         StopCurrentAudio();

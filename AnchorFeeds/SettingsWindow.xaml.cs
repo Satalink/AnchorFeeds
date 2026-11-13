@@ -31,7 +31,7 @@ public partial class SettingsWindow : Window
         RebuildLibrary);
 
     private void PruneLibraryButton_Click(object sender, RoutedEventArgs e) => RunMaintenance(
-        "Delete all articles older than the retention period?\n\nThis permanently removes their audio, images, and text.",
+        "Delete articles older than their applicable saved retention period? Starred and favorite articles follow their own retention settings.\n\nThis permanently removes their audio, images, and text.",
         "Prune Feed Library",
         PruneLibrary);
 
@@ -118,6 +118,7 @@ public partial class SettingsWindow : Window
         BannedPhrasesEditor.Phrases = settings.BannedPhrases;
         FavoritedPhrasesEditor.Phrases = settings.FavoritedPhrases;
         StarredPhrasesEditor.Phrases = settings.StarredPhrases;
+        ShowMatchingKeywordsCheckBox.IsChecked = settings.ShowMatchingKeywords;
         foreach (var feed in settings.FeedSources)
         {
             _feedConfigurations.Add(feed.Copy());
@@ -125,6 +126,8 @@ public partial class SettingsWindow : Window
         FeedGrid.ItemsSource = _feedConfigurations;
         OutputDirectoryTextBox.Text = settings.OutputDirectory;
         RetentionTextBox.Text = settings.Retention;
+        StarredRetentionTextBox.Text = settings.StarredRetention;
+        FavoritesRetentionTextBox.Text = settings.FavoritesRetention;
         var feedUpdateInterval = string.IsNullOrWhiteSpace(settings.FeedUpdateInterval)
             ? "Manual only"
             : settings.FeedUpdateInterval.Trim();
@@ -164,6 +167,8 @@ public partial class SettingsWindow : Window
     }
 
     public AppSettings? UpdatedSettings { get; private set; }
+
+    public void SelectFeedsTab() => FeedsTab.IsSelected = true;
 
     private void TickerNotificationComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
         TickerSoundPanel.Visibility = TickerNotificationComboBox.SelectedItem is ComboBoxItem { Tag: "sound" }
@@ -526,6 +531,8 @@ public partial class SettingsWindow : Window
                 OutputDirectory = OutputDirectoryTextBox.Text.Trim(),
                 FinalOutput = ArticleFileNaming.BuildFinalOutputTemplate(OutputDirectoryTextBox.Text.Trim()),
                 Retention = RetentionTextBox.Text.Trim(),
+                StarredRetention = StarredRetentionTextBox.Text.Trim(),
+                FavoritesRetention = FavoritesRetentionTextBox.Text.Trim(),
                 FeedUpdateInterval = feedUpdateInterval,
                 PortableMode = PortableModeCheckBox.IsChecked.GetValueOrDefault(),
                 MarkAsPlayed = markAsPlayed,
@@ -535,6 +542,7 @@ public partial class SettingsWindow : Window
                 BannedPhrases = BannedPhrasesEditor.Phrases.ToList(),
                 FavoritedPhrases = FavoritedPhrasesEditor.Phrases.ToList(),
                 StarredPhrases = StarredPhrasesEditor.Phrases.ToList(),
+                ShowMatchingKeywords = ShowMatchingKeywordsCheckBox.IsChecked.GetValueOrDefault(),
                 AutoPlayNext = AutoPlayNextCheckBox.IsChecked.GetValueOrDefault(),
                 RetrieveLatestFeedsOnLaunch = RetrieveLatestFeedsOnLaunchCheckBox.IsChecked.GetValueOrDefault(),
                 AiPromptInstruction = AiPromptInstructionTextBox.Text.Trim(),

@@ -178,11 +178,18 @@
                                     </ControlTemplate>
                                 </ToggleButton.Template>
                             </ToggleButton>
-                            <ContentPresenter IsHitTestVisible="False" Margin="6,3,26,3"
+                            <ContentPresenter x:Name="SelectionPresenter" IsHitTestVisible="False" Margin="6,3,26,3"
                                               VerticalAlignment="Center" HorizontalAlignment="Left"
+                                              TextElement.Foreground="{TemplateBinding Foreground}"
                                               Content="{TemplateBinding SelectionBoxItem}"
                                               ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
                                               ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}" />
+                            <TextBox x:Name="PART_EditableTextBox" Visibility="Hidden"
+                                     Margin="6,3,26,3" Padding="0" BorderThickness="0"
+                                     Background="Transparent" Foreground="{TemplateBinding Foreground}"
+                                     CaretBrush="{TemplateBinding Foreground}"
+                                     VerticalContentAlignment="Center"
+                                     IsReadOnly="{TemplateBinding IsReadOnly}" />
                             <Popup IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom"
                                    AllowsTransparency="True" Focusable="False" PopupAnimation="Slide">
                                 <Border MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
@@ -196,6 +203,10 @@
                             </Popup>
                         </Grid>
                         <ControlTemplate.Triggers>
+                            <Trigger Property="IsEditable" Value="True">
+                                <Setter TargetName="SelectionPresenter" Property="Visibility" Value="Hidden" />
+                                <Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible" />
+                            </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.5" />
                             </Trigger>
@@ -217,11 +228,13 @@
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsHighlighted" Value="True">
                                 <Setter TargetName="ItemBorder" Property="Background"
-                                        Value="{DynamicResource SelectedBackgroundBrush}" />
+                                        Value="{DynamicResource MenuHoverBackgroundBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource MenuHoverTextBrush}" />
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
                                 <Setter TargetName="ItemBorder" Property="Background"
-                                        Value="{DynamicResource SelectedBackgroundBrush}" />
+                                        Value="{DynamicResource MenuHoverBackgroundBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource MenuHoverTextBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>

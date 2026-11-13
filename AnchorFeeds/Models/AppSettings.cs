@@ -24,6 +24,12 @@ public sealed class AppSettings
     [YamlMember(Alias = "retention")]
     public string Retention { get; set; } = string.Empty;
 
+    [YamlMember(Alias = "starred_retention")]
+    public string StarredRetention { get; set; } = "never";
+
+    [YamlMember(Alias = "favorites_retention")]
+    public string FavoritesRetention { get; set; } = "never";
+
     [YamlMember(Alias = "feed_update_interval")]
     public string FeedUpdateInterval { get; set; } = "Manual only";
 
@@ -53,6 +59,9 @@ public sealed class AppSettings
 
     [YamlMember(Alias = "starred_phrases")]
     public List<string> StarredPhrases { get; set; } = [];
+
+    [YamlMember(Alias = "show_matching_keywords")]
+    public bool ShowMatchingKeywords { get; set; } = true;
 
     [YamlMember(Alias = "full_mode_for_favorites")]
     public bool FullModeForFavorites { get; set; }
@@ -153,6 +162,12 @@ public sealed class AppSettings
 
     [YamlIgnore]
     public TimeSpan RetentionPeriod { get; private set; }
+
+    [YamlIgnore]
+    public TimeSpan? StarredRetentionPeriod { get; private set; }
+
+    [YamlIgnore]
+    public TimeSpan? FavoritesRetentionPeriod { get; private set; }
 
     [YamlIgnore]
     public bool MarkOnStart => MarkAsPlayed.Equals("when_started", StringComparison.OrdinalIgnoreCase);
@@ -302,23 +317,30 @@ public sealed class AppSettings
             }
         }
 
-        if (string.IsNullOrWhiteSpace(Retention))
+        RetentionPeriod = ParseRetention(Retention, "retention", allowNever: false)!.Value;
+        StarredRetentionPeriod = ParseRetention(StarredRetention, "starred_retention", allowNever: true);
+        FavoritesRetentionPeriod = ParseRetention(FavoritesRetention, "favorites_retention", allowNever: true);
+    }
+
+    private static TimeSpan? ParseRetention(string? value, string name, bool allowNever)
+    {
+        if (allowNever && string.Equals(value?.Trim(), "never", StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidDataException("retention must be a positive duration such as '6 hours', '2 days', or '4 weeks'.");
+            return null;
         }
 
         var match = Regex.Match(
-            Retention,
+            value?.Trim() ?? string.Empty,
             @"^(?<amount>[1-9][0-9]*)\s+(?<unit>hours?|days?|weeks?)$",
             RegexOptions.IgnoreCase);
         if (!match.Success || !long.TryParse(match.Groups["amount"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var amount))
         {
-            throw new InvalidDataException("retention must be a positive duration such as '6 hours', '2 days', or '4 weeks'.");
+            throw new InvalidDataException($"{name} must be {(allowNever ? "'never' or " : string.Empty)}a positive duration such as '6 hours', '2 days', or '4 weeks'.");
         }
 
         try
         {
-            RetentionPeriod = match.Groups["unit"].Value.ToLowerInvariant() switch
+            return match.Groups["unit"].Value.ToLowerInvariant() switch
             {
                 "hour" or "hours" => TimeSpan.FromHours(amount),
                 "day" or "days" => TimeSpan.FromDays(amount),
@@ -328,7 +350,7 @@ public sealed class AppSettings
         }
         catch (ArgumentOutOfRangeException ex)
         {
-            throw new InvalidDataException("retention duration is too large.", ex);
+            throw new InvalidDataException($"{name} duration is too large.", ex);
         }
     }
 

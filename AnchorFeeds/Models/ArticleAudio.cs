@@ -33,6 +33,24 @@ public sealed class ArticleAudio : INotifyPropertyChanged
 
     public List<string> Categories { get; set; } = [];
 
+    public IReadOnlyList<KeywordPill> MatchedKeywords { get; private set; } = [];
+
+    internal void SetMatchedPills(
+        IReadOnlyList<string> favoriteKeywords,
+        IReadOnlyList<string> starKeywords,
+        IReadOnlyList<string> favoriteCategories)
+    {
+        var matches = favoriteKeywords.Select(phrase => new KeywordPill(phrase, KeywordPillKind.FavoriteKeyword))
+            .Concat(starKeywords.Select(phrase => new KeywordPill(phrase, KeywordPillKind.StarKeyword)))
+            .Concat(favoriteCategories.Select(category => new KeywordPill(category, KeywordPillKind.FavoriteCategory)))
+            .ToList();
+        if (!MatchedKeywords.SequenceEqual(matches))
+        {
+            MatchedKeywords = matches;
+            OnPropertyChanged(nameof(MatchedKeywords));
+        }
+    }
+
     private bool _isFavoriteCategory;
 
     public bool IsFavoriteCategory

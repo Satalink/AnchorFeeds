@@ -20,10 +20,28 @@ public sealed class NewsGenerationService(
     private const string WindowsSpeechEngineName = "Windows Speech";
     private static readonly HttpClient HttpClient = new() { Timeout = TimeSpan.FromSeconds(45) };
     private readonly FeedUpdateStateService _feedUpdateState = new(settings.FeedSources);
+    private readonly DateTimeOffset _schedulerStartedAt = DateTimeOffset.UtcNow;
+    private readonly Dictionary<string, DateTimeOffset> _lastFeedAttempts = new(StringComparer.OrdinalIgnoreCase);
     private readonly string _outputDirectory = ArticleFileNaming.ResolveOutputDirectory(
         applicationDirectory,
         settings.OutputDirectory);
     private string TempDirectory => Path.Combine(_outputDirectory, ".tmp");
+
+    public bool HasDueFeeds(DateTimeOffset now) =>
+        settings.FeedSources.Any(feed => IsFeedDue(feed, now));
+
+    private bool IsFeedDue(FeedConfiguration feed, DateTimeOffset now)
+    {
+        if (!feed.Enabled || feed.GetEffectiveUpdatePeriod(settings.FeedUpdateIntervalPeriod) is not { } interval)
+        {
+            return false;
+        }
+
+        var lastChecked = _feedUpdateState.GetLastCheckedAt(feed.Url);
+        var lastAttempt = _lastFeedAttempts.TryGetValue(feed.Url, out var attempt) ? attempt : lastChecked;
+        var lastActivity = lastChecked > lastAttempt ? lastChecked : lastAttempt;
+        return now - (lastActivity ?? _schedulerStartedAt) >= interval;
+    }
 
     public async Task<(int GeneratedCount, IReadOnlyList<string> FailedFeeds, IReadOnlyList<string> MediaWarnings)> GenerateAsync(
         IProgress<string> progress,
@@ -70,10 +88,7 @@ public sealed class NewsGenerationService(
                 continue;
             }
 
-            if (automatic &&
-                (feed.GetEffectiveUpdatePeriod(settings.FeedUpdateIntervalPeriod) is not { } interval ||
-                 (_feedUpdateState.GetLastCheckedAt(feedUrl) is { } lastUpdated &&
-                  DateTimeOffset.UtcNow - lastUpdated < interval)))
+            if (automatic && !IsFeedDue(feed, DateTimeOffset.UtcNow))
             {
                 continue;
             }
@@ -81,6 +96,10 @@ public sealed class NewsGenerationService(
             var feedSlug = ArticleFileNaming.BuildFeedSlug(feedUrl);
             progress.Report($"Fetching feed {feedIndex + 1}/{settings.FeedSources.Count}: {feed.Name}");
             string xml;
+            if (articleToRebuild is null)
+            {
+                _lastFeedAttempts[feedUrl] = DateTimeOffset.UtcNow;
+            }
             try
             {
                 xml = await HttpClient.GetStringAsync(feedUri, cancellationToken);

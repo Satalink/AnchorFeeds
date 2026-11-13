@@ -70,11 +70,12 @@
             <Setter Property="BorderThickness" Value="0,0,0,1" />
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource SelectedBackgroundBrush}" />
+                    <Setter Property="Background" Value="{DynamicResource MenuHoverBackgroundBrush}" />
+                    <Setter Property="Foreground" Value="{DynamicResource MenuHoverTextBrush}" />
                 </Trigger>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource SelectedBackgroundBrush}" />
-                    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                    <Setter Property="Background" Value="{DynamicResource MenuHoverBackgroundBrush}" />
+                    <Setter Property="Foreground" Value="{DynamicResource MenuHoverTextBrush}" />
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -86,11 +87,12 @@
             <Setter Property="Padding" Value="6,4" />
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource SelectedBackgroundBrush}" />
+                    <Setter Property="Background" Value="{DynamicResource MenuHoverBackgroundBrush}" />
+                    <Setter Property="Foreground" Value="{DynamicResource MenuHoverTextBrush}" />
                 </Trigger>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource SelectedBackgroundBrush}" />
-                    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                    <Setter Property="Background" Value="{DynamicResource MenuHoverBackgroundBrush}" />
+                    <Setter Property="Foreground" Value="{DynamicResource MenuHoverTextBrush}" />
                 </Trigger>
                 <Trigger Property="IsKeyboardFocusWithin" Value="True">
                     <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
@@ -441,7 +443,7 @@
                     </ScrollViewer>
                 </TabItem>
 
-                <TabItem Header="Feeds">
+                <TabItem x:Name="FeedsTab" Header="Feeds">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="12,8,8,4">
                         <StackPanel Orientation="Horizontal">
@@ -511,6 +513,13 @@
                         </StackPanel>
                         <local:PhrasePillEditor x:Name="StarredPhrasesEditor" Margin="0,4,0,12" />
 
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                            <CheckBox x:Name="ShowMatchingKeywordsCheckBox" Content="Show matching keywords"
+                                      ToolTip="Show matching favorite and starred keywords and favorite categories beside each article's action buttons." />
+                            <Button Style="{StaticResource HelpButtonStyle}"
+                                    ToolTip="Show matching favorite and starred keywords and favorite categories beside each article's action buttons. You can also hide them from a pill's right-click menu." />
+                        </StackPanel>
+
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="Scan mode countdown" FontWeight="SemiBold" />
                             <Button Style="{StaticResource HelpButtonStyle}"
@@ -545,6 +554,19 @@
                                 ToolTip="How long generated article MP3s are kept before the library removes them. Enter a positive number and hours, days, or weeks: 12 hours, 3 days, or 2 weeks. Expiration is checked when the library loads or refreshes." />
                     </StackPanel>
                     <TextBox x:Name="RetentionTextBox" Margin="0,4,0,12" />
+
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Prune Starred" FontWeight="SemiBold" />
+                        <Button Style="{StaticResource HelpButtonStyle}"
+                                ToolTip="Enter never or a positive duration in hours, days, or weeks. Starred articles are retained for this period instead of the general audio retention period." />
+                    </StackPanel>
+                    <TextBox x:Name="StarredRetentionTextBox" Margin="0,4,0,12" />
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Prune Favorites" FontWeight="SemiBold" />
+                        <Button Style="{StaticResource HelpButtonStyle}"
+                                ToolTip="Enter never or a positive duration in hours, days, or weeks. Favorites include matching feed categories and favorite phrases. Articles that are both starred and favorites use the longer period; never takes precedence." />
+                    </StackPanel>
+                    <TextBox x:Name="FavoritesRetentionTextBox" Margin="0,4,0,12" />
 
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="Speech engine" FontWeight="SemiBold" />

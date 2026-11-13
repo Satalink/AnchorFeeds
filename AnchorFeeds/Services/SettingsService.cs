@@ -89,6 +89,9 @@ public sealed class SettingsService(string settingsPath)
     public void SaveShowArticleText(bool value) =>
         SaveSetting("show_article_text", value ? "true" : "false");
 
+    public void SaveShowMatchingKeywords(bool value) =>
+        SaveSetting("show_matching_keywords", value ? "true" : "false");
+
     public void SaveShowUnplayedOnly(bool value) =>
         SaveSetting("unplayed_only", value ? "true" : "false");
 
