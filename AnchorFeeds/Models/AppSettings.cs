@@ -63,6 +63,12 @@ public sealed class AppSettings
     [YamlMember(Alias = "show_matching_keywords")]
     public bool ShowMatchingKeywords { get; set; } = true;
 
+    [YamlMember(Alias = "mark_read_when_scrolled_out_of_view")]
+    public bool MarkReadWhenScrolledOutOfView { get; set; }
+
+    [YamlMember(Alias = "mark_read_when_scrolled_to_bottom")]
+    public bool? LegacyMarkReadWhenScrolledToBottom { get; set; }
+
     [YamlMember(Alias = "full_mode_for_favorites")]
     public bool FullModeForFavorites { get; set; }
 
@@ -175,6 +181,11 @@ public sealed class AppSettings
     public void Validate()
     {
         LegacyMaxArticlesPerFeed = null;
+        if (LegacyMarkReadWhenScrolledToBottom is { } legacyMarkRead)
+        {
+            MarkReadWhenScrolledOutOfView |= legacyMarkRead;
+            LegacyMarkReadWhenScrolledToBottom = null;
+        }
 
         var supportedLanguages = new HashSet<string>(
             ["system", "en", "cs", "de", "es", "fr", "it", "ja", "ko", "pl", "pt-BR", "ru", "tr", "zh-Hans", "zh-Hant"],

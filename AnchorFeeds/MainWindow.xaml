@@ -264,11 +264,30 @@
                          Background="{DynamicResource SurfaceBackgroundBrush}"
                          Foreground="{DynamicResource TextPrimaryBrush}"
                          BorderBrush="{DynamicResource BorderBrush}"
+                         VirtualizingPanel.IsVirtualizing="True"
+                         VirtualizingPanel.IsVirtualizingWhenGrouping="True"
+                         VirtualizingPanel.VirtualizationMode="Recycling"
+                         SizeChanged="ArticleList_SizeChanged"
+                         PreviewMouseWheel="ArticleList_PreviewMouseWheel"
+                         PreviewKeyDown="ArticleList_PreviewKeyDown"
+                         ScrollViewer.ScrollChanged="ArticleList_ScrollChanged"
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                     <ListBox.ItemContainerStyle>
                         <Style TargetType="{x:Type ListBoxItem}">
                             <Setter Property="Background" Value="{DynamicResource SurfaceBackgroundBrush}" />
                             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <Setter Property="Margin">
+                                <Setter.Value>
+                                    <MultiBinding>
+                                        <MultiBinding.Converter>
+                                            <services:ArticleListEndMarginConverter />
+                                        </MultiBinding.Converter>
+                                        <Binding />
+                                        <Binding Path="Tag" RelativeSource="{RelativeSource AncestorType={x:Type ListBox}}" />
+                                        <Binding Path="ActualHeight" RelativeSource="{RelativeSource AncestorType={x:Type ListBox}}" />
+                                    </MultiBinding>
+                                </Setter.Value>
+                            </Setter>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsPlayed}" Value="True">
                                     <Setter Property="Background" Value="{DynamicResource ReadArticleBackgroundBrush}" />

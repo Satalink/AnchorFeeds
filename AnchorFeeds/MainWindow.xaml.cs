@@ -134,6 +134,12 @@ public partial class MainWindow : Window
     private bool _audioSourceReady;
     private bool _isSeeking;
     private bool _articleWheelPending;
+    private bool _articleListUserScrollPending;
+    private bool _adjustingArticleListScroll;
+    private readonly HashSet<ArticleAudio> _articlesScrolledOutOfView = [];
+    private readonly DispatcherTimer _articleListReadTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
+    private int? _articleListFirstVisibleIndex;
+    private bool _batchingScrolledReadUpdates;
     private bool _restoreMuteAfterPlayback;
     private bool _playBodyAudioOnNextSelection;
     private bool _initializing;
@@ -333,6 +339,8 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        ArticleList.AddHandler(ScrollBar.ScrollEvent, new ScrollEventHandler(ArticleList_ScrollBarScroll), true);
+        _articleListReadTimer.Tick += (_, _) => ApplyScrolledArticleReadState();
         DiagnosticLog.Write("Startup", "Main window initialization started.");
         RestoreWindowPlacement();
         LocalizationService.Apply(this);
@@ -390,6 +398,7 @@ public partial class MainWindow : Window
         NavigationConsumptionComboBox.SelectedIndex = 0;
         ApplyNavigationPaneLayout();
         ApplyArticleListWidthRatio(_articleListWidthRatio);
+        ConfigureArticleListScrollReading();
         ArticleList.ItemsSource = _library.Items;
         HookLibraryCounts();
         BuildNavigationTree();
@@ -1003,6 +1012,7 @@ public partial class MainWindow : Window
             ArticleList.SelectedItem = null;
             UpdateSystemMediaTransportControls();
             _settings = _settingsService.Load();
+            ConfigureArticleListScrollReading();
             DiagnosticLog.Configure(_settings.DebugLoggingEnabled);
             DiagnosticLog.Write("Settings", "Settings saved and reloaded.");
             _articleImageHeightRatio = _settings.ArticleImageHeightRatio;
@@ -1815,6 +1825,219 @@ public partial class MainWindow : Window
     {
         ArticleImageRow.Height = new GridLength(ratio, GridUnitType.Star);
         ArticleTextRow.Height = new GridLength(1 - ratio, GridUnitType.Star);
+    }
+
+    private void ConfigureArticleListScrollReading()
+    {
+        _articleListFirstVisibleIndex = null;
+        VirtualizingPanel.SetScrollUnit(ArticleList,
+            _settings.MarkReadWhenScrolledOutOfView ? ScrollUnit.Pixel : ScrollUnit.Item);
+        UpdateArticleListEndPadding();
+    }
+
+    private void ArticleList_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateArticleListEndPadding();
+
+    private void UpdateArticleListEndPadding()
+    {
+        if (ArticleList is null)
+        {
+            return;
+        }
+
+        ArticleList.Tag = _settings is not null && _settings.MarkReadWhenScrolledOutOfView && ArticleList.Items.Count > 0
+            ? ArticleList.Items[ArticleList.Items.Count - 1]
+            : null;
+    }
+
+    private void ArticleList_PreviewMouseWheel(object sender, MouseWheelEventArgs e) => NoteArticleListUserScroll();
+
+    private void ArticleList_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key is Key.Down or Key.PageDown or Key.End or Key.Space)
+        {
+            NoteArticleListUserScroll();
+        }
+    }
+
+    private void ArticleList_ScrollBarScroll(object sender, ScrollEventArgs e) => NoteArticleListUserScroll();
+
+    private void NoteArticleListUserScroll()
+    {
+        if (_settings is null || !_settings.MarkReadWhenScrolledOutOfView || _articleListUserScrollPending)
+        {
+            return;
+        }
+
+        _articleListUserScrollPending = true;
+        if (FindDescendantScrollViewer(ArticleList) is { } scrollViewer &&
+            FindArticleListViewport(scrollViewer) is { } viewport)
+        {
+            _articleListFirstVisibleIndex = GetFirstVisibleArticleIndex(viewport);
+        }
+        Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(() => _articleListUserScrollPending = false));
+    }
+
+    private void ArticleList_ScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (_adjustingArticleListScroll || _settings is null || !_settings.MarkReadWhenScrolledOutOfView ||
+            e.OriginalSource is not ScrollViewer scrollViewer ||
+            !ReferenceEquals(scrollViewer, FindDescendantScrollViewer(ArticleList)) ||
+            FindArticleListViewport(scrollViewer) is not { } viewport)
+        {
+            return;
+        }
+
+        var firstVisibleIndex = GetFirstVisibleArticleIndex(viewport);
+        if (_articleListUserScrollPending && e.VerticalChange > 0 &&
+            _articleListFirstVisibleIndex is { } previousIndex && firstVisibleIndex is { } currentIndex)
+        {
+            for (var index = previousIndex; index < currentIndex; index++)
+            {
+                if (ArticleList.Items[index] is ArticleAudio { IsPlayed: false } article)
+                {
+                    _articlesScrolledOutOfView.Add(article);
+                }
+            }
+        }
+
+        _articleListFirstVisibleIndex = firstVisibleIndex;
+        if (_articlesScrolledOutOfView.Count == 0)
+        {
+            return;
+        }
+
+        _articleListReadTimer.Stop();
+        _articleListReadTimer.Start();
+    }
+
+    private void ApplyScrolledArticleReadState()
+    {
+        _articleListReadTimer.Stop();
+        var articles = _articlesScrolledOutOfView.ToList();
+        _articlesScrolledOutOfView.Clear();
+        if (articles.Count == 0)
+        {
+            return;
+        }
+
+        var refreshFilter = UnplayedOnlyMenuItem.IsChecked &&
+            articles.Any(article => !article.IsStarred && ArticleList.Items.Contains(article));
+        var scrollViewer = refreshFilter ? FindDescendantScrollViewer(ArticleList) : null;
+        var viewport = scrollViewer is not null ? FindArticleListViewport(scrollViewer) : null;
+        var anchor = viewport is not null
+            ? GetArticleListPositions(viewport).Where(position => position.Bottom > 0)
+                .OrderBy(position => position.Top).FirstOrDefault()
+            : default;
+        try
+        {
+            _adjustingArticleListScroll = true;
+            _articleListUserScrollPending = false;
+            _batchingScrolledReadUpdates = true;
+            _library.MarkAllPlayed(articles);
+            _batchingScrolledReadUpdates = false;
+            if (refreshFilter)
+            {
+                UpdateFilter();
+                if (anchor.Article is not null && ArticleList.Items.Contains(anchor.Article) &&
+                    viewport is not null && scrollViewer is not null)
+                {
+                    ArticleList.UpdateLayout();
+                    var newPosition = GetArticleListPositions(viewport)
+                        .FirstOrDefault(position => ReferenceEquals(position.Article, anchor.Article));
+                    if (newPosition.Article is null)
+                    {
+                        ArticleList.ScrollIntoView(anchor.Article);
+                        ArticleList.UpdateLayout();
+                        newPosition = GetArticleListPositions(viewport)
+                            .FirstOrDefault(position => ReferenceEquals(position.Article, anchor.Article));
+                    }
+                    if (newPosition.Article is not null)
+                    {
+                        scrollViewer.ScrollToVerticalOffset(scrollViewer.VerticalOffset + newPosition.Top - anchor.Top);
+                    }
+                }
+            }
+            else
+            {
+                UpdateLibraryCounts();
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            UpdateLibraryCounts();
+            DiagnosticLog.Exception("Could not save scrolled article read state", ex);
+            MessageBox.Show(this, ex.Message, "Could not mark articles as read", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            _batchingScrolledReadUpdates = false;
+            _adjustingArticleListScroll = false;
+            _articleListFirstVisibleIndex = null;
+        }
+    }
+
+    private int? GetFirstVisibleArticleIndex(ScrollContentPresenter viewport)
+    {
+        var positions = GetArticleListPositions(viewport).ToList();
+        if (positions.Count == 0)
+        {
+            return null;
+        }
+
+        var first = positions.Where(position => position.Bottom > 0)
+            .OrderBy(position => position.Top)
+            .FirstOrDefault();
+        if (first.Article is null)
+        {
+            return ArticleList.Items.Count;
+        }
+
+        var index = ArticleList.Items.IndexOf(first.Article);
+        return index >= 0 ? index : null;
+    }
+
+    private static ScrollContentPresenter? FindArticleListViewport(DependencyObject element)
+    {
+        if (element is ScrollContentPresenter presenter)
+        {
+            return presenter;
+        }
+
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(element); index++)
+        {
+            if (FindArticleListViewport(VisualTreeHelper.GetChild(element, index)) is { } descendant)
+            {
+                return descendant;
+            }
+        }
+
+        return null;
+    }
+
+    private IEnumerable<(ArticleAudio Article, double Top, double Bottom)> GetArticleListPositions(ScrollContentPresenter viewport)
+    {
+        return FindArticleListItems(viewport).Select(item =>
+        {
+            var top = item.TranslatePoint(new Point(0, 0), viewport).Y;
+            return ((ArticleAudio)item.DataContext, top, top + item.ActualHeight);
+        });
+    }
+
+    private static IEnumerable<ListBoxItem> FindArticleListItems(DependencyObject element)
+    {
+        if (element is ListBoxItem { DataContext: ArticleAudio } item)
+        {
+            yield return item;
+            yield break;
+        }
+
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(element); index++)
+        {
+            foreach (var child in FindArticleListItems(VisualTreeHelper.GetChild(element, index)))
+            {
+                yield return child;
+            }
+        }
     }
 
     private void ArticleList_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -3962,6 +4185,7 @@ public partial class MainWindow : Window
             (!applyHistoryOptions || MatchesConsumption(article, consumptionFilter)) &&
             MatchesHistoryAge(article, ageFilter, applyHistoryOptions);
         view.Refresh();
+        UpdateArticleListEndPadding();
         if (ArticleList.Items.Count == 0)
         {
             ClearArticlePaneForEmptyList();
@@ -4229,7 +4453,10 @@ public partial class MainWindow : Window
 
         if (e.PropertyName == nameof(ArticleAudio.IsPlayed))
         {
-            UpdateLibraryCounts();
+            if (!_batchingScrolledReadUpdates)
+            {
+                UpdateLibraryCounts();
+            }
             if (ReferenceEquals(sender, _currentArticle))
             {
                 UpdateCurrentState();
@@ -4724,6 +4951,7 @@ public partial class MainWindow : Window
             return;
         }
 
+        ApplyScrolledArticleReadState();
         base.OnClosing(e);
     }
 

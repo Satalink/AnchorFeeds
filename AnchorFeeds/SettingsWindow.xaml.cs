@@ -119,6 +119,7 @@ public partial class SettingsWindow : Window
         FavoritedPhrasesEditor.Phrases = settings.FavoritedPhrases;
         StarredPhrasesEditor.Phrases = settings.StarredPhrases;
         ShowMatchingKeywordsCheckBox.IsChecked = settings.ShowMatchingKeywords;
+        MarkReadWhenScrolledOutOfViewCheckBox.IsChecked = settings.MarkReadWhenScrolledOutOfView;
         foreach (var feed in settings.FeedSources)
         {
             _feedConfigurations.Add(feed.Copy());
@@ -543,6 +544,7 @@ public partial class SettingsWindow : Window
                 FavoritedPhrases = FavoritedPhrasesEditor.Phrases.ToList(),
                 StarredPhrases = StarredPhrasesEditor.Phrases.ToList(),
                 ShowMatchingKeywords = ShowMatchingKeywordsCheckBox.IsChecked.GetValueOrDefault(),
+                MarkReadWhenScrolledOutOfView = MarkReadWhenScrolledOutOfViewCheckBox.IsChecked.GetValueOrDefault(),
                 AutoPlayNext = AutoPlayNextCheckBox.IsChecked.GetValueOrDefault(),
                 RetrieveLatestFeedsOnLaunch = RetrieveLatestFeedsOnLaunchCheckBox.IsChecked.GetValueOrDefault(),
                 AiPromptInstruction = AiPromptInstructionTextBox.Text.Trim(),

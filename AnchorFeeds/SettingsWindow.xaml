@@ -520,6 +520,11 @@
                                     ToolTip="Show matching favorite and starred keywords and favorite categories beside each article's action buttons. You can also hide them from a pill's right-click menu." />
                         </StackPanel>
 
+                        <CheckBox x:Name="MarkReadWhenScrolledOutOfViewCheckBox"
+                                  Content="Mark articles as read when scrolled above the feed list"
+                                  ToolTip="Mark articles as read when you scroll them completely out of the top of the feed list."
+                                  Margin="0,0,0,12" />
+
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="Scan mode countdown" FontWeight="SemiBold" />
                             <Button Style="{StaticResource HelpButtonStyle}"
