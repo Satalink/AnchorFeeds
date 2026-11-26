@@ -1,4 +1,5 @@
 # AnchorFeeds
+![Anchorfeeds Interface](AnchorFeeds/Assets/AnchorFeeds_screenshot.jpg)
 
 AnchorFeeds is a Windows desktop app that turns RSS and Atom feeds into a personal news broadcast. It reads each new article aloud with text-to-speech, shows the article's images, text and YouTube thumbnails, and remembers what you have played and starred.
 
