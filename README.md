@@ -1,84 +1,199 @@
 # AnchorFeeds
 
-Feed updates process new items oldest-first, with a built-in safety cap of 100 new articles per feed per update to bound feed and Edge TTS work. If a feed has more new items, the saved cursor lets later updates continue through the backlog.
+AnchorFeeds is a Windows desktop app that turns RSS and Atom feeds into a personal news broadcast. It reads each new article aloud with text-to-speech, shows the article's images, text and YouTube thumbnails, and remembers what you have played and starred.
 
-AnchorFeeds is a Windows WPF application that generates text to speech audio files per RSS or Atom article, displays feed images and article text, shows YouTube thumbnails with a browser-open video button, opens source articles in a browser, plays generated audio, and remembers played and starred articles. The application icon and startup logo use the AnchorFeeds image in `AnchorFeeds/Assets`; the standalone executable includes 32, 64, 128, and 256 pixel icon images.
+## What you can do with it
 
-## Install (easy)
+- **Listen to your feeds.** Add RSS/Atom sources. AnchorFeeds fetches new articles, generates a title and body MP3 for each one with Edge TTS, and plays them in order. Several voices can be selected and are rotated between articles.
+- **Choose how to listen.** *Scan mode* (default) plays each title, shows a countdown, then moves on; click the countdown to hear the full body. *Full mode* plays the title and then the body.
+- **Read along.** The article text scrolls with the audio. Scroll the text to seek, or drag the progress bar.
+- **Organize the library.** Filter by feed or category, sort, group by feed, show unread or starred only, and star articles you want to keep.
+- **Stay on top of favorites.** Favorite and starred keywords and categories are highlighted with pills and a ribbon, and favorite articles get an attention chime.
+- **Run in the background.** Feeds update on a schedule while the app is minimized or in the notification area. A tray icon shows a blue dot when unread articles exist.
+- **Take it with you.** Export the visible articles as one commute MP3.
+- **Control it from the keyboard or headset.** Configurable hot keys and Windows media buttons (Play/Pause, Previous, Next).
+- **Make it yours.** Light, Dark, Charcoal and System Desktop themes, custom fonts, 14 interface languages, and share buttons for X, Facebook and email.
 
-Download [`AnchorFeeds-Setup.msi`](AnchorFeeds-Setup.msi) from the repository root and run it. No .NET SDK or command line is needed. It installs per user to `%LocalAppData%\Programs\AnchorFeeds`, adds a Start Menu shortcut, and keeps your `settings.yaml` on upgrade. Audio generation still requires `edge-tts` and FFmpeg on `PATH`.
+## Requirements
 
-The MSI is rebuilt and copied to the repository root by every Release publish (the command below); add `-p:BuildInstaller=false` to skip it.
+| Requirement | Needed for |
+| --- | --- |
+| Windows 10 (19041) or later, x64 | Running the app |
+| [`edge-tts`](https://github.com/rany2/edge-tts) command (`edge-tts.exe` on `PATH`, or in the current user's Python Scripts directory) | Generating article audio |
+| [FFmpeg](https://ffmpeg.org/) on `PATH` (FFprobe optional) | MP3 bitrates above 48 kbps, commute MP3 export and its detailed progress |
+| .NET 10 SDK | Only to run from source or build the installer |
 
-## Run from source
+## Installation
 
-Install the .NET 10 SDK and the `edge-tts` command, then run:
+### Option 1: MSI installer (easiest)
+
+1. Install the requirements above (`edge-tts` and FFmpeg).
+2. Download [`AnchorFeeds-Setup.msi`](AnchorFeeds-Setup.msi) from the repository root and run it. No .NET SDK or command line is needed.
+3. Start **AnchorFeeds** from the Start Menu.
+
+The MSI installs per user to `%LocalAppData%\Programs\AnchorFeeds`, adds a Start Menu shortcut, and keeps your `settings.yaml` when you upgrade.
+
+### Option 2: Run from source
 
 ```powershell
 dotnet run --project .\AnchorFeeds\AnchorFeeds.csproj
 ```
 
-The app reads `settings.yaml` next to the executable. Relative output paths are resolved from that directory. Played status is stored separately under `%LOCALAPPDATA%\anchorfeeds\library-state.json` to preserve existing library data.
-
-Enable **Settings > Maintenance > Enable verbose debug logging** to append detailed startup, feed-update, selection, and audio-playback diagnostics to `AnchorFeeds-debug.log` beside the executable. The log can include article titles, feed URLs, and local media paths. Logging is off by default.
-
-The app uses YAML as its settings format. Portable Mode stores it in `settings.yaml` beside the application; otherwise, the YAML settings document is stored in the current user's registry. If a registry settings document exists, it takes precedence on startup, and any adjacent `settings.yaml` is deleted. The project includes `settings.yaml` in publish output for first-run portable use, so publishing can recreate this file even when registry mode is active; the app deletes that copy on its next startup. When switching to registry storage, the current settings are saved to the registry and `settings.yaml` is deleted. Selecting Portable Mode saves the current registry settings to `settings.yaml` and removes the app's registry settings. Only one active settings source is used at a time. Only one AnchorFeeds instance runs per Windows user; launching the app again restores and activates the existing window. The optional launch-at-startup setting is synchronized with the current user's Windows Run registry key. It creates the library-state directory and media output directory as needed; the `.tmp` folder inside the media output directory is created when feed generation runs. Configured directories are created when used rather than all being checked in a separate startup preflight.
-
-## Publish a Windows executable
+### Option 3: Publish a Windows executable
 
 ```powershell
 dotnet publish .\AnchorFeeds\AnchorFeeds.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
 ```
 
-The published executable still needs `settings.yaml` beside it. Audio generation also requires `edge-tts.exe` and FFmpeg on `PATH` (or `edge-tts.exe` in the current user's Python Scripts directory). FFmpeg encodes generated audio at the selected MP3 bitrate; Windows playback, RSS fetching, and the GUI are provided by the app.
+A Release publish also builds the MSI and copies it to the repository root as `AnchorFeeds-Setup.msi`. Add `-p:BuildInstaller=false` to skip it. The published executable needs `settings.yaml` beside it.
 
-## Feed update and article limits
+In VS Code, **Ctrl+Shift+B** publishes without the MSI and **Alt+Shift+B** publishes with it.
 
-The configurable maximum-new-articles setting has been removed. Each update processes up to 100 new articles per feed, oldest first, and resumes any remaining backlog on a later update. Feed item cursors and last successful check times are stored outside settings in `%LOCALAPPDATA%\anchorfeeds\feed-update-state.json`. Existing saved article metadata seeds cursors when this state is first created.
+## Quick start
 
-Scheduled updates continue while AnchorFeeds is minimized or closed to the notification area. Enabled feeds are checked when their individual intervals are due; manual-only feeds are not polled automatically. Due checks run approximately every 10 seconds, and a failed feed is retried after its configured interval. The computer must be awake and the application running.
+1. Launch AnchorFeeds and open **Settings** (the cog, or press `O`).
+2. In **Feeds**, add your RSS/Atom sources. In **Audio**, select one or more voices (use **Sample** to preview).
+3. Click **Update Feeds** (`Ctrl+F5`). New articles are converted to audio and appear in the Feed Library.
+4. Select an article, or press `Space` to start playback.
 
-## Playback settings
+## Using the app
 
-The navigation pane beside the Feed Library can filter by one or more sources and categories. **All feeds** clears navigation selections; expand **Sources** to select an individual feed or its categories. Click a source/category to replace the selection; hold **Ctrl** while clicking to add more groupings. **Mark visible as read** applies only to articles currently shown in the Feed Library, so choose **All feeds** and clear other filters to mark the whole library. The fixed **Export commute MP3** action exports the articles currently visible in the Feed Library, preserving their displayed order and any active filters. Choose titles only or titles plus article bodies, then select where to save the MP3. Export progress shows the article or audio item being processed and the encoding percentage when FFprobe is available; FFmpeg and FFprobe on `PATH` enable detailed progress. A short attention chime is inserted before the title audio for articles in favorited categories.
+### Player
 
-**Settings > Audio** sets general audio retention and separate **Prune Starred** and **Prune Favorites** periods. Enter `never` (the default) or a positive duration such as `12 hours`, `3 days`, or `2 weeks`. Favorites include favorite feed categories and favorite phrases. For articles that are both starred and favorite, the longer period applies; `never` takes precedence. Expiration uses the audio file's creation time (or the article folder's creation time when audio generation failed), and runs on library load, refresh, or manual pruning. Saving settings can immediately prune expired articles. Manual pruning uses the last saved settings.
+- On startup the AnchorFeeds logo is shown until an article is selected. Selecting an article starts its title narration immediately.
+- The article title is at the top, image and text are stacked in the center, and the playback controls are at the bottom. When available, the feed's logo appears beside the title; if it fails to load, the app tries the site's `/favicon.ico` and `/apple-touch-icon.png`.
+- **View > Show article text** shows or hides the body text used for the audio. During body playback the text scrolls in proportion to audio progress. Scrolling the text seeks the body audio to the matching percentage, even when paused (approximate, not word-synchronized; scrolling during the title does not seek it).
+- Click or drag the progress bar to seek, or focus it and use the arrow keys (1%), Page Up/Down (10%), or Home/End.
+- Click the Scan/Full icon to switch modes; the choice is remembered.
+  - **Scan mode** (default): plays the title, shows a countdown over the image, then advances to the next visible article regardless of Auto Play Next. Click the countdown to play the body instead. Click the image when no countdown is visible to open the source in a browser. Configure the countdown in Audio settings: 0 (skip), 3, 5, 7, 10, 15, 20, 30 or 60 seconds.
+  - **Full mode**: plays the title then the body. **Auto Play Next** decides whether playback continues afterwards.
+- A page-flip sound plays after an article ends, before the next one starts. It is not included in the MP3 files.
+- Opening an article in a browser skips auto-advance once when that article finishes.
+- The divider between the article list and player can be dragged. When both image and text are visible, their horizontal divider can also be dragged.
+- Starred articles can be set from the list or the player. Share buttons beside the progress bar open the article in X, Facebook or your default email app using share links (no API access needed).
+- Playback runs at normal speed. Older `playback_speed` values are ignored.
+- **Media buttons:** AnchorFeeds publishes the current article to the Windows media session, so headphone or keyboard Play/Pause, Previous and Next work in the background. Windows may route them to another app that owns the active media session.
 
-Per-feed item categories are managed separately from the feed's general group. Right-click an article in the Feed Library title list to favorite or block one of its feed categories. The **Favorites** filter shows saved articles matching a feed's favorite categories, and matching list items display a blue corner ribbon. The feed properties gear shows the saved favorite and blocked category pills; remove a pill there to clear its setting. Preferences are stored in `%LOCALAPPDATA%\anchorfeeds\feed-category-preferences.json`. Blocked categories prevent matching items from being added during feed updates; existing library items are not deleted. Favorite categories are labels only and do not automatically star articles.
+### Feed Library
 
-In **Settings > Feeds**, favorite and starred words and phrases that match an article title appear as green and gold pills beside its action buttons. Matching favorite feed categories appear as dark blue pills. When they do not fit, **...** opens the Feeds settings. Right-click a pill to hide all matching pills, open Feeds settings, or remove that keyword or favorite category from its corresponding list. Category choices are managed through the feed properties gear. Deleting a starred keyword does not unstar existing articles. Restore hidden pills with **Show matching keywords** in Feeds; this preference is saved with the other settings.
+- Each entry shows its feed publication date/time, or the audio file creation date/time otherwise. Played titles use regular-weight text, and read articles have a background 29% darker than unread ones.
+- Beside the Audio library heading: the circular-arrow **Update Feeds** icon and **Mark all read**. The sort icon offers alphabetical, newest-first and oldest-first order plus **Group by Feed**. The funnel opens **Unread only** and **Starred only** filters. These selections are saved in `settings.yaml`.
+- **Unread only** (`View > Unplayed only`) can start enabled and is remembered. Articles marked read automatically (playback, navigation or scrolling) stay visible until the next successful feed update. Explicitly marking articles read filters them immediately. Starred articles remain visible while it is active.
+- The library refreshes automatically after retrieving feeds. If a feed returns an HTTP error it is skipped, the rest are still processed, and a warning lists the feed URL and error.
+- Right-click the **Load in browser** icon to open the article's local media folder in File Explorer. Left-click opens the article in the browser.
+- The **AI** button beside **Load in browser** (enabled in General settings) opens a menu of chat services. The chosen service opens with a URL-encoded query containing your instruction, the article title and its source URL, and the article body is copied to the clipboard. Gemini opens its home page and copies the full query plus body because it has no prompt-prefill URL.
 
-The optional **Mark articles as read when scrolled above the feed list** setting marks items when scrolling moves them completely above the title-list viewport. Extra space at the end lets the last item be scrolled out too. The setting is off by default; read updates are saved together shortly after scrolling pauses. With **Unread only** enabled, articles automatically marked read through playback, navigation, or scrolling remain visible until the next successful feed update; explicitly marking articles read filters them immediately.
+#### Navigation pane
 
-Use the Settings cog in the app to edit settings, including per-feed names, links, categories, and update periods, output paths, retention, playback behavior, article text visibility, MP3 bitrate, Scan mode countdown, and the Anchor(s) voice list. Settings are grouped into **General**, **Interface**, **Feeds**, **Audio**, and **Maintenance** tabs. **Portable Mode** is enabled by default to preserve the existing `settings.yaml` storage behavior. When disabled, the app stores the active settings as YAML text in the current Windows user's registry under `HKEY_CURRENT_USER\Software\Satalink\AnchorFeeds` and deletes the previous `settings.yaml`. Switching back to Portable Mode recreates `settings.yaml` from the registry settings and removes the app's registry settings. The **Feeds** tab lets you configure each RSS/Atom source independently. Favorite and blocked category choices are managed per feed from article context menus and the feed properties gear. Each feed can inherit the global polling interval, use one of the existing interval choices, or be set to **Manual only**. Manual **Update Feeds** checks every configured source. Existing URL-only `feeds` entries are migrated to editable records using the URL host as the name and **Other / Uncategorized** as the group. Structured feed settings are stored in `feed_sources`; item cursors and last successful check times are kept separately in `%LOCALAPPDATA%\anchorfeeds\feed-update-state.json`. **Interface** offers **Light**, **Dark**, **Charcoal**, and **System Desktop Theme** themes, applied immediately after saving and persisted as `appearance_theme`. System Desktop Theme follows the Windows light/dark app preference, uses Windows system colors for controls, text, and selection, and refreshes when Windows system colors change. The Interface tab also lets you choose font families and sizes separately for the Title List and Article Text; these choices are saved to the selected settings destination and applied immediately. In **General**, **Retrieve latest feeds on application launch** is on by default; turn it off to skip automatic feed retrieval at startup. The **Feed update polling interval** defaults to **Manual only** and is the interval inherited by feeds set to **Use global interval**; per-feed interval overrides still run on their own schedules. **Launch at startup** is enabled by default and starts AnchorFeeds when you sign in to Windows. **Minimize to tray** hides the window when minimized; when both options are enabled, launch starts the app hidden in the notification area. **Close to tray** keeps the app running in the notification area when its window is closed. Right-clicking the window's title-bar Close button exits immediately, even when Close to tray is enabled. The tray icon offers Open and Exit commands and displays a blue dot whenever unread articles are in the library. **Application Language / Locale** defaults to **System default**, which detects the Windows display language at startup; users can choose another language explicitly. Available languages are English, Czech, German, Spanish, French, Italian, Japanese, Korean, Polish, Brazilian Portuguese, Russian, Turkish, Simplified Chinese, and Traditional Chinese. A language change applies the next time the application starts. The language setting is stored as `application_language` in the selected settings destination.
+The pane beside the Feed Library filters by one or more sources and categories. **All feeds** clears selections. Expand **Sources** to pick a feed or its categories. Click to replace the selection; hold **Ctrl** to add more. Its divider position and collapsed state are saved and restored.
 
-Each setting has a clickable **(?)** help button and a hover tooltip with definitions or examples. Voices are grouped by language and country, with the system's exact locale expanded initially; other groups can be expanded as needed. If no voices have been configured, the app defaults to Guy and Jenny for en-US, or one female and one male voice for the system locale (falling back to the system language). The voice catalog does not include popularity data, so this is a practical default rather than a measured popularity ranking. Select multiple voices with their checkboxes. Use **Sample** beside a voice to hear it before selecting. The sample button spins while the clip is being generated, then highlights while playing and returns to its normal state when finished or canceled. Newly generated articles rotate through the selected voices; if edge-tts reports that no audio was received, the app tries the other selected voices for that article before reporting a failure. Existing `anchor_1`, `anchor_2`, `anchor_1_voices`, and `anchor_2_voices` settings are still accepted and migrated to the single `anchor_voices` list when settings are next saved. **Default** uses Edge TTS's native 24 kHz, 48 kbps mono MP3 output without FFmpeg. The explicit 48 kbps choice uses the same native output; 96, 128, 160, 192, 256, and 320 kbps choices use FFmpeg to re-encode new files. Feed update cursors, including the last processed item timestamp and last successful check time, are stored in `%LOCALAPPDATA%\anchorfeeds\feed-update-state.json`, separate from settings. Existing library metadata seeds cursors during migration. Items at or before each feed's cursor are skipped without checking article audio files or reporting per-item skips. Playback runs at normal speed. The page-flip sound plays after an article's narration ends, before the next article starts, and is not included in the MP3 files. Changes are saved to the selected settings destination and applied immediately.
+#### Marking, deleting and rebuilding
 
-Use **View > Show article text** to show or hide the body text used to synthesize the selected article's audio. The player keeps the article title at the top, image and text stacked in the available center area, and playback controls at the bottom. During body playback, the article text scrolls in proportion to audio progress. Scroll the text with the mouse wheel to seek the body audio to the corresponding percentage, including while paused. This mapping is approximate rather than word-synchronized; scrolling text during title narration does not seek the title. Click or drag the progress bar to seek the current audio segment, or focus it and use the arrow keys (1%), Page Up/Down (10%), or Home/End. Use the share buttons beside the progress bar to open the selected article in X, Facebook, or your default email app; these use share links and do not require platform API access. Click the Scan/Full icon beside the player buttons to switch modes; the chosen mode is remembered. Scan mode (on by default) plays the title audio, displays a countdown over the image, then advances to the next visible article regardless of Auto Play Next. Click the countdown overlay to play the article body instead; click the image when the countdown is not visible to open its source in a browser. Configure the countdown in Audio settings to 0 (skip the countdown), 3, 5, 7, 10, 15, 20, 30, or 60 seconds (default 7). Full mode plays title audio followed by body audio; Auto Play Next determines whether playback continues after the body. A page-flip sound plays when moving to the next article after playback completes. Read status follows the configured mark-as-played rule in both modes. Opening the article in a browser skips auto-advance once when that article finishes. Played article titles are shown in regular-weight text in the Feed Library title list. **View > Unplayed only** can be set to start enabled in Configure all settings and is remembered across launches. The divider between the article list and player can be dragged to adjust their relative widths. Articles can be starred from the list or player; starred articles remain visible when **Unplayed only** is active. Star state is saved with the local library state.
+- **Mark visible as read** applies only to articles currently shown. To mark the whole library, choose **All feeds** and clear other filters.
+- **Mark all read** marks every unplayed article as played, including articles hidden by the current filter.
+- The trash button deletes an article's MP3 and saved details. Deleting the playing article stops playback first.
+- The circular-arrow icon at the right of the player's top action row rebuilds the selected article from its current feed entry. It replaces the audio and clears cached media before fetching fresh images, then reloads and reselects the article without starting playback.
+- **Optional scroll-to-read:** the setting *Mark articles as read when scrolled above the feed list* marks items once they scroll completely above the list viewport. Extra space at the end lets the last item scroll out too. It is off by default, and read updates are saved together shortly after scrolling pauses.
 
-AnchorFeeds publishes its current article to the Windows media session. Headphone or keyboard media buttons for **Play/Pause**, **Previous**, and **Next** control the player even when its window is in the background. Windows may route media buttons to another app if that app owns the active media session.
+#### Categories, keywords and favorites
 
-Read articles use a title-list background 29% darker than unread articles; the selection highlight remains visible.
+- Right-click an article in the list to favorite or block one of its feed's categories. The **Favorites** filter shows saved articles matching favorite categories, and matching items show a blue corner ribbon.
+- The feed properties gear shows saved favorite and blocked category pills; remove a pill to clear it. Preferences are stored in `%LOCALAPPDATA%\anchorfeeds\feed-category-preferences.json`.
+- Blocked categories stop matching items from being added during feed updates; existing items are not deleted. Favorite categories are labels only and do not star articles.
+- Favorite and starred words/phrases (set in **Settings > Feeds**) that match an article title appear as green and gold pills beside its action buttons. Matching favorite categories appear as dark blue pills. When pills do not fit, **...** opens Feeds settings.
+- Right-click a pill to hide all matching pills, open Feeds settings, or remove that keyword or category from its list. Deleting a starred keyword does not unstar existing articles. Restore hidden pills with **Show matching keywords** in Feeds.
+- Articles in favorited categories get a short attention chime before the title audio in exports.
 
-Choose the **Media output directory** in **Settings > General** by clicking its path field or **Browse...**. Article folders are always named `{feed}_{title}` using the feed and sanitized title slugs; each folder contains `title.mp3`, `body.mp3`, and the cached article image when one is available. Temporary audio-generation files go in a `.tmp` subfolder of the selected media output directory, created when feed generation runs. Existing article folders remain in place when the app upgrades from older settings. Existing flat MP3s are moved into their corresponding article folder when their feed entry is retrieved; saved played/starred state is retained.
+#### Commute MP3 export
 
-Body narration uses the same filtered, visible text as Article Text without repeating the title. Article Text preserves supported feed formatting, including headings, lists, emphasis, and selected inline font styles; links and their displayed text are omitted from both the display and narration. If formatted content is unavailable, the saved plain text is shown and narrated instead. Older saved articles keep their existing audio until rebuilt or generated again. When the body text is exactly the article title, body playback is suppressed as duplicate narration, but formatted article text remains visible when available; MP3 file sizes are not used to infer duplicate content.
+**Export commute MP3** exports the articles currently visible in the Feed Library, in displayed order and respecting active filters. Choose titles only or titles plus bodies, then pick where to save. Progress shows the item being processed and the encoding percentage when FFprobe is available (FFmpeg and FFprobe on `PATH` enable detailed progress).
 
-The navigation-pane divider position and collapsed state are saved in the UI preferences file and restored the next time the app starts. The article-list divider position is saved as `article_list_width_ratio` in `settings.yaml` when dragged and restored the next time the app starts. When both article image and text are visible, their horizontal divider can also be dragged to adjust their height ratio; its position is saved as `article_image_height_ratio` and restored between sessions. Both divider settings are intentionally not shown in the Configure all settings window. General settings can enable the AI chat button and hold its prompt instruction. The **AI** button beside **Load in browser** opens a menu of chat services; choosing one opens a URL-encoded query containing the instruction, article title, and source URL, while the article body is copied to the clipboard. Gemini opens its home page and copies the full query plus body because it has no prompt-prefill URL.
+### Hot keys
 
-The article list shows each article's feed publication date/time when available, or the audio file creation date/time otherwise. Use the circular-arrow **Update Feeds** icon and **Mark all read** button beside the Audio library heading. The sort icon opens alphabetical, newest-first, and oldest-first order options, plus **Group by Feed**. The funnel button opens **Unread only** and **Starred only** filters. These list sort, grouping, and filter selections are saved in `settings.yaml`. The library refreshes automatically after retrieving feeds. If an RSS server returns an HTTP error, that feed is skipped, the remaining feeds are still processed, and a warning lists the feed URL and error. In **Settings > Maintenance**, **Rebuild Library** is a total reset: it permanently deletes matching article audio files and article folders, including cached images and text, then clears saved library state. Use the circular-arrow icon at the right of the player’s top action row to rebuild the selected article from its current feed entry; this replaces its audio and clears cached media before downloading fresh images, then reloads and reselects it without starting playback.
+Focus a shortcut field in **Settings > Interface** and press the desired combination. Ctrl, Shift and Alt are supported; Backspace/Delete disables a shortcut. Hot keys work in the main window except while typing. Custom shortcuts are saved in `settings.yaml`.
 
-**Settings > Interface** contains the theme selector and configurable hot keys. Focus a shortcut field and press the desired key combination; Ctrl, Shift, and Alt modifiers are supported, and Backspace/Delete disables that shortcut. Hot keys are active in the main window except while entering text. Defaults are: Space play/pause, Down next article, Up previous article, Shift+Up/Shift+Down volume up/down (10% per press), Right/Left forward/back, M mute, F Full mode, S Scan mode, Ctrl+F5 update the Feed Library, F5 rebuild the current article after confirmation, Ctrl+Shift+A mark all as read, and O open Settings. Right and Left first step through the image/video carousel when an article has more than one media item (Right until the last item, Left until the first); once the carousel is at that end, or when there is only one media item, Right skips the audio forward 30 seconds and Left skips it back 10 seconds. Settings saved with the old arrow defaults (Right/Left for next/previous, Up/Down for volume) are migrated to the new defaults automatically. Custom shortcuts are saved in `settings.yaml`.
+| Key | Action |
+| --- | --- |
+| Space | Play / pause |
+| Down / Up | Next / previous article |
+| Right / Left | Forward 30 s / back 10 s (see below) |
+| Shift+Up / Shift+Down | Volume up / down (10% per press) |
+| M | Mute |
+| F / S | Full mode / Scan mode |
+| Ctrl+F5 | Update the Feed Library |
+| F5 | Rebuild the current article (after confirmation) |
+| Ctrl+Shift+A | Mark all as read |
+| O | Open Settings |
 
-Right-click the **Load in browser** icon to open the selected article's local media folder in File Explorer. This is an advanced shortcut; left-click continues to open the article in the browser.
+When an article has more than one image/video, Right and Left first step through the carousel; once at that end (or with a single media item) they skip the audio. Settings saved with the old arrow defaults are migrated automatically.
 
-Use **Mark all read** to mark every unplayed article in the library as played, including articles hidden by the current filter. The trash button on an article immediately deletes its MP3 and saved article details; deleting the currently playing article stops playback first.
+## Settings
 
-Set `mark_as_played` in `settings.yaml` to one of:
+Open **Settings** with the cog. Each option has a clickable **(?)** help button and a hover tooltip. Changes are saved to the selected settings destination and applied immediately (except language, which applies on next start). Settings are grouped into five tabs.
 
-- `when_started` — mark an article played as soon as playback starts.
-- `when_ended_or_skipped` — mark it when playback ends or you move to another article.
+### General
 
-`auto_play_next` defaults to `true`. Auto Play Next and the mark-as-played rule remain available under **Settings > Playback**. Older `playback_speed` values in `settings.yaml` are ignored; the app plays audio at normal speed.
+- **Application Language / Locale:** defaults to **System default** (the Windows display language at startup). Available: English, Czech, German, Spanish, French, Italian, Japanese, Korean, Polish, Brazilian Portuguese, Russian, Turkish, Simplified Chinese and Traditional Chinese. Stored as `application_language`.
+- **Retrieve latest feeds on application launch:** on by default.
+- **Feed update polling interval:** defaults to **Manual only**; feeds set to **Use global interval** inherit it.
+- **Launch at startup:** starts AnchorFeeds at Windows sign-in (synchronized with the current user's Run registry key).
+- **Minimize to tray / Close to tray:** hide the window when minimized or closed. With launch at startup and minimize to tray both on, the app starts hidden. Right-clicking the title-bar Close button always exits. The tray icon offers Open and Exit.
+- **Media output directory:** click the path field or **Browse...**.
+- **AI chat:** enable the AI button and set its prompt instruction.
+- **Portable Mode:** see [Where settings and data live](#where-settings-and-data-live).
 
-On startup, the AnchorFeeds logo appears in the media area until an article is selected. Selecting an article starts its title narration immediately. When available, the feed's source logo appears beside the article title, top-aligned and sized to match the title text height. If the feed logo fails to load, the app tries the article site's `/favicon.ico` and `/apple-touch-icon.png`.
+### Interface
+
+- **Theme:** **Light**, **Dark**, **Charcoal**, or **System Desktop Theme** (follows the Windows light/dark preference and system colors, and refreshes when they change). Saved as `appearance_theme`.
+- **Fonts:** family and size for the Title List and Article Text, applied immediately.
+- **Hot keys:** see [Hot keys](#hot-keys).
+
+### Feeds
+
+- Configure each RSS/Atom source independently: name, link, group/category, and update period. Each feed can inherit the global interval, use a fixed interval, or be **Manual only**. Manual **Update Feeds** checks every source.
+- Favorite and blocked categories are managed per feed from article context menus and the feed properties gear.
+- Banned, favorite and starred words and phrases are edited here.
+- Existing URL-only `feeds` entries are migrated to records named by URL host in the **Other / Uncategorized** group. Structured settings live in `feed_sources`.
+
+### Audio
+
+- **Voices:** grouped by language and country, with the system locale expanded first. Select several with their checkboxes and preview with **Sample** (it spins while generating and highlights while playing). New articles rotate through the selected voices; if edge-tts returns no audio, the other selected voices are tried before failing. With none configured, the app defaults to Guy and Jenny for en-US, or one female and one male voice for the system locale (falling back to the system language), a practical rather than popularity-based default. Older `anchor_1`, `anchor_2`, `anchor_1_voices` and `anchor_2_voices` settings are migrated to `anchor_voices` on next save.
+- **MP3 bitrate:** **Default** and 48 kbps use Edge TTS's native 24 kHz mono output without FFmpeg. 96, 128, 160, 192, 256 and 320 kbps re-encode new files with FFmpeg.
+- **Scan mode countdown**, **Auto Play Next** (default `true`) and the mark-as-played rule.
+- **Retention:** general audio retention plus separate **Prune Starred** and **Prune Favorites** periods. Enter `never` (default) or a duration such as `12 hours`, `3 days` or `2 weeks`. Favorites include favorite feed categories and phrases. When an article is both starred and favorite the longer period applies, and `never` wins. Expiration uses the audio file's creation time (or the article folder's when generation failed) and runs on library load, refresh, or manual pruning. Saving settings can prune immediately; manual pruning uses the last saved settings.
+- `mark_as_played` in `settings.yaml` is either `when_started` (as soon as playback starts) or `when_ended_or_skipped` (when playback ends or you move on).
+
+### Maintenance
+
+- **Enable verbose debug logging:** appends detailed startup, feed-update, selection and audio-playback diagnostics to `AnchorFeeds-debug.log` beside the executable. It can include article titles, feed URLs and local media paths. Off by default.
+- **Rebuild Library** is a total reset: it permanently deletes matching article audio and folders (including cached images and text) and clears saved library state.
+- **Prune** removes expired articles using the last saved settings.
+
+## How feed updates work
+
+- Each update processes up to **100 new articles per feed**, oldest first, and resumes any remaining backlog on a later update. This cap bounds feed and Edge TTS work.
+- Feed item cursors and last successful check times are stored in `%LOCALAPPDATA%\anchorfeeds\feed-update-state.json`, separate from settings. Existing library metadata seeds the cursors when the file is first created. Items at or before a feed's cursor are skipped without checking audio files or reporting per-item skips.
+- Scheduled updates continue while the app is minimized or in the notification area. Due feeds are checked about every 10 seconds, each on its own interval; manual-only feeds are never polled automatically. A failed feed is retried after its interval. The computer must be awake and the app running.
+
+## Media and article content
+
+- Each article gets a folder named `{feed}_{title}` (sanitized slugs) in the media output directory containing `title.mp3`, `body.mp3` and the cached article image when available. Temporary generation files go in a `.tmp` subfolder, created when generation runs.
+- Existing article folders stay in place after upgrades. Existing flat MP3s are moved into their article folder when their feed entry is retrieved, keeping played/starred state.
+- Body narration uses the same filtered, visible text as Article Text, without repeating the title. Article Text keeps supported feed formatting (headings, lists, emphasis, selected inline font styles); links and their text are omitted from display and narration. If formatted content is unavailable, the saved plain text is used.
+- Older articles keep their existing audio until rebuilt. When the body text equals the title, body playback is suppressed as duplicate narration but formatted text remains visible. MP3 file sizes are never used to detect duplicates.
+
+## Where settings and data live
+
+| Data | Location |
+| --- | --- |
+| Settings (Portable Mode, default) | `settings.yaml` beside the executable; relative paths resolve from there |
+| Settings (Portable Mode off) | YAML text in `HKEY_CURRENT_USER\Software\Satalink\AnchorFeeds` |
+| Played/starred library state | `%LOCALAPPDATA%\anchorfeeds\library-state.json` |
+| Feed update cursors | `%LOCALAPPDATA%\anchorfeeds\feed-update-state.json` |
+| Category preferences | `%LOCALAPPDATA%\anchorfeeds\feed-category-preferences.json` |
+| Debug log | `AnchorFeeds-debug.log` beside the executable |
+| Article audio and images | The configured media output directory |
+
+Only one settings source is active at a time. If a registry settings document exists it takes precedence at startup, and any adjacent `settings.yaml` is deleted. Switching off Portable Mode saves the settings to the registry and deletes `settings.yaml`; switching it back recreates `settings.yaml` and removes the registry settings. Publish output includes `settings.yaml` for first-run portable use, so publishing can recreate it while registry mode is active; the app deletes that copy on its next startup.
+
+Only one AnchorFeeds instance runs per Windows user; launching again restores the existing window. The app creates the library-state and media output directories when needed. The article-list divider is saved as `article_list_width_ratio` and the image/text divider as `article_image_height_ratio` in `settings.yaml`; neither appears in the settings window.
