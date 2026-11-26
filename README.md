@@ -10,6 +10,7 @@ AnchorFeeds is a Windows desktop app that turns RSS and Atom feeds into a person
 - **Organize the library.** Filter by feed or category, sort, group by feed, show unread or starred only, and star articles you want to keep.
 - **Stay on top of favorites.** Favorite and starred keywords and categories are highlighted with pills and a ribbon, and favorite articles get an attention chime.
 - **Run in the background.** Feeds update on a schedule while the app is minimized or in the notification area. A tray icon shows a blue dot when unread articles exist.
+- **Watch the ticker.** Show scrolling unread headlines at the top or bottom of your desktop while the app is minimized or in the tray.
 - **Take it with you.** Export the visible articles as one commute MP3.
 - **Control it from the keyboard or headset.** Configurable hot keys and Windows media buttons (Play/Pause, Previous, Next).
 - **Make it yours.** Light, Dark, Charcoal and System Desktop themes, custom fonts, 14 interface languages, and share buttons for X, Facebook and email.
@@ -107,6 +108,15 @@ The pane beside the Feed Library filters by one or more sources and categories. 
 
 **Export commute MP3** exports the articles currently visible in the Feed Library, in displayed order and respecting active filters. Choose titles only or titles plus bodies, then pick where to save. Progress shows the item being processed and the encoding percentage when FFprobe is available (FFmpeg and FFprobe on `PATH` enable detailed progress).
 
+### Desktop ticker
+
+In **Settings > Ticker**, enable the ticker for a minimized window, when closed to the notification area, or both. Closing to the tray also requires **Close to tray** under General. The ticker shows up to 40 recent unread headlines; it hides when none are available.
+
+- **Move and resize:** drag the control panel at the right up or down to snap the ticker to the nearest desktop edge. Drag the thin edge facing the desktop to change its height. Position and height are saved.
+- **Ticker controls:** pause/resume scrolling, close the ticker, cycle through five scroll speeds, or mute/unmute title narration. Closing the ticker hides it until the main window is restored.
+- **Headlines:** hover to pause scrolling, or drag horizontally to browse. Each headline has buttons to play its body audio, mark it read, or delete it. Left and right clicks can each be configured to open the article in the app or browser, play its body in the app or ticker, or mark it read.
+- **Options:** adjust the font, height, speed and position in Ticker settings. You can also mark articles read when their titles finish playing and choose a Windows notification or sound for new favorite articles while the ticker is active.
+
 ### Hot keys
 
 Focus a shortcut field in **Settings > Interface** and press the desired combination. Ctrl, Shift and Alt are supported; Backspace/Delete disables a shortcut. Hot keys work in the main window except while typing. Custom shortcuts are saved in `settings.yaml`.
@@ -128,7 +138,7 @@ When an article has more than one image/video, Right and Left first step through
 
 ## Settings
 
-Open **Settings** with the cog. Each option has a clickable **(?)** help button and a hover tooltip. Changes are saved to the selected settings destination and applied immediately (except language, which applies on next start). Settings are grouped into five tabs.
+Open **Settings** with the cog. Each option has a clickable **(?)** help button and a hover tooltip. Changes are saved to the selected settings destination and applied immediately (except language, which applies on next start). Settings are grouped into six tabs.
 
 ### General
 
@@ -147,6 +157,10 @@ Open **Settings** with the cog. Each option has a clickable **(?)** help button 
 - **Theme:** **Light**, **Dark**, **Charcoal**, or **System Desktop Theme** (follows the Windows light/dark preference and system colors, and refreshes when they change). Saved as `appearance_theme`.
 - **Fonts:** family and size for the Title List and Article Text, applied immediately.
 - **Hot keys:** see [Hot keys](#hot-keys).
+
+### Ticker
+
+Configure when the desktop ticker appears, headline click actions, favorite notifications, and its appearance. See [Desktop ticker](#desktop-ticker) for its controls.
 
 ### Feeds
 
