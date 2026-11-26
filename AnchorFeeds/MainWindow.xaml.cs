@@ -137,6 +137,7 @@ public partial class MainWindow : Window
     private bool _articleListUserScrollPending;
     private bool _adjustingArticleListScroll;
     private readonly HashSet<ArticleAudio> _articlesScrolledOutOfView = [];
+    private readonly HashSet<string> _deferredUnreadFilterPaths = new(StringComparer.OrdinalIgnoreCase);
     private readonly DispatcherTimer _articleListReadTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
     private int? _articleListFirstVisibleIndex;
     private bool _batchingScrolledReadUpdates;
@@ -164,6 +165,7 @@ public partial class MainWindow : Window
     private bool _navigationPaneCollapsed;
     private NavigationMode _navigationMode;
     private readonly List<FeedCategorySelection> _selectedFeedCategories = [];
+    private readonly List<string> _selectedFeedGroups = [];
     private readonly AudioPlaylistExportService _playlistExportService = new();
 
     private readonly WindowPlacementService _windowPlacementService = new();
@@ -730,6 +732,7 @@ public partial class MainWindow : Window
             _lastAutomaticUpdateFailure = null;
             _library.Refresh();
             ApplyFavoriteCategoryFlags();
+            _deferredUnreadFilterPaths.Clear();
             UpdateFilter();
             StatusText.Text = $"Generation complete: {result.GeneratedCount} new article(s).";
             DiagnosticLog.Write("Feeds", $"Feed update completed. Generated={result.GeneratedCount}; failed feeds={result.FailedFeeds.Count}; media warnings={result.MediaWarnings.Count}.");
@@ -873,6 +876,10 @@ public partial class MainWindow : Window
                 .Cast<ArticleAudio>()
                 .ToList();
             var count = _library.MarkAllPlayed(visibleArticles);
+            foreach (var article in visibleArticles)
+            {
+                _deferredUnreadFilterPaths.Remove(article.FilePath);
+            }
             UpdateCurrentState();
             UpdateFilter();
             StatusText.Text = count == 0
@@ -1333,6 +1340,42 @@ public partial class MainWindow : Window
         }
 
         NavigationTreeItems.Children.Clear();
+        var articlesByFeedGroup = _library.Items
+            .GroupBy(GetConfiguredFeedGroup, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase);
+        var feedGroupsPanel = new StackPanel();
+        foreach (var groupOption in FeedConfiguration.GroupOptions)
+        {
+            if (!articlesByFeedGroup.TryGetValue(groupOption.Value, out var articleCount))
+            {
+                continue;
+            }
+
+            var groupButton = new Button
+            {
+                Content = $"{groupOption.Label}  [{articleCount}]",
+                Tag = groupOption.Value,
+                HorizontalContentAlignment = HorizontalAlignment.Left,
+                Padding = new Thickness(8, 4, 4, 4),
+                Margin = new Thickness(0, 1, 0, 1),
+                BorderThickness = new Thickness(0),
+                Background = Brushes.Transparent,
+                FontWeight = IsFeedGroupSelected(groupOption.Value)
+                    ? FontWeights.SemiBold
+                    : FontWeights.Normal
+            };
+            groupButton.Click += FeedGroupNavigationButton_Click;
+            feedGroupsPanel.Children.Add(groupButton);
+        }
+
+        NavigationTreeItems.Children.Add(new Expander
+        {
+            Header = "Feed groups",
+            Content = feedGroupsPanel,
+            IsExpanded = true,
+            Margin = new Thickness(0, 0, 0, 4)
+        });
+
         var feedGroups = _library.Items
             .GroupBy(article => string.IsNullOrWhiteSpace(article.FeedUrl)
                 ? article.FeedDisplayName
@@ -1405,6 +1448,14 @@ public partial class MainWindow : Window
         });
     }
 
+    private void FeedGroupNavigationButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: string group })
+        {
+            SelectFeedGroup(group, Keyboard.Modifiers.HasFlag(ModifierKeys.Control));
+        }
+    }
+
     private void FeedCategoryNavigationButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button { Tag: FeedCategorySelection selection })
@@ -1427,6 +1478,7 @@ public partial class MainWindow : Window
         if (!addToSelection)
         {
             _selectedFeedCategories.Clear();
+            _selectedFeedGroups.Clear();
         }
 
         if (!_selectedFeedCategories.Any(selected => AreSelectionsEqual(selected, selection)))
@@ -1439,9 +1491,31 @@ public partial class MainWindow : Window
         UpdateFilter();
     }
 
+    private void SelectFeedGroup(string group, bool addToSelection)
+    {
+        _navigationMode = NavigationMode.AllFeeds;
+        if (!addToSelection)
+        {
+            _selectedFeedCategories.Clear();
+            _selectedFeedGroups.Clear();
+        }
+
+        if (!_selectedFeedGroups.Contains(group, StringComparer.OrdinalIgnoreCase))
+        {
+            _selectedFeedGroups.Add(group);
+        }
+
+        SearchOptionsPanel.Visibility = Visibility.Collapsed;
+        BuildNavigationTree();
+        UpdateFilter();
+    }
+
     private static bool AreSelectionsEqual(FeedCategorySelection left, FeedCategorySelection right) =>
         left.FeedIdentity.Equals(right.FeedIdentity, StringComparison.OrdinalIgnoreCase) &&
         string.Equals(left.Category, right.Category, StringComparison.OrdinalIgnoreCase);
+
+    private bool IsFeedGroupSelected(string group) =>
+        _selectedFeedGroups.Contains(group, StringComparer.OrdinalIgnoreCase);
 
     private bool IsFeedSelected(ArticleAudio feed) =>
         _selectedFeedCategories.Any(selection =>
@@ -1456,6 +1530,10 @@ public partial class MainWindow : Window
 
     private static string GetFeedIdentity(ArticleAudio article) =>
         string.IsNullOrWhiteSpace(article.FeedUrl) ? article.FeedDisplayName : article.FeedUrl;
+
+    private string GetConfiguredFeedGroup(ArticleAudio article) =>
+        _settings.FeedSources.FirstOrDefault(feed =>
+            feed.Url.Equals(article.FeedUrl, StringComparison.OrdinalIgnoreCase))?.Group ?? "other";
 
     private sealed record FeedCategorySelection(string FeedIdentity, string? Category);
 
@@ -1578,9 +1656,9 @@ public partial class MainWindow : Window
 
     private void ApplyNavigationPaneLayout()
     {
-        NavigationPaneColumn.MinWidth = _navigationPaneCollapsed ? 34 : 160;
+        NavigationPaneColumn.MinWidth = _navigationPaneCollapsed ? 27.2 : 160;
         NavigationPaneColumn.Width = new GridLength(
-            _navigationPaneCollapsed ? 34 : _navigationPaneWidth);
+            _navigationPaneCollapsed ? 27.2 : _navigationPaneWidth);
         NavigationPaneContent.Visibility = _navigationPaneCollapsed
             ? Visibility.Collapsed
             : Visibility.Visible;
@@ -1920,47 +1998,18 @@ public partial class MainWindow : Window
             return;
         }
 
-        var refreshFilter = UnplayedOnlyMenuItem.IsChecked &&
-            articles.Any(article => !article.IsStarred && ArticleList.Items.Contains(article));
-        var scrollViewer = refreshFilter ? FindDescendantScrollViewer(ArticleList) : null;
-        var viewport = scrollViewer is not null ? FindArticleListViewport(scrollViewer) : null;
-        var anchor = viewport is not null
-            ? GetArticleListPositions(viewport).Where(position => position.Bottom > 0)
-                .OrderBy(position => position.Top).FirstOrDefault()
-            : default;
         try
         {
             _adjustingArticleListScroll = true;
             _articleListUserScrollPending = false;
             _batchingScrolledReadUpdates = true;
+            foreach (var article in articles.Where(article => !article.IsPlayed))
+            {
+                DeferUnreadFiltering(article);
+            }
             _library.MarkAllPlayed(articles);
             _batchingScrolledReadUpdates = false;
-            if (refreshFilter)
-            {
-                UpdateFilter();
-                if (anchor.Article is not null && ArticleList.Items.Contains(anchor.Article) &&
-                    viewport is not null && scrollViewer is not null)
-                {
-                    ArticleList.UpdateLayout();
-                    var newPosition = GetArticleListPositions(viewport)
-                        .FirstOrDefault(position => ReferenceEquals(position.Article, anchor.Article));
-                    if (newPosition.Article is null)
-                    {
-                        ArticleList.ScrollIntoView(anchor.Article);
-                        ArticleList.UpdateLayout();
-                        newPosition = GetArticleListPositions(viewport)
-                            .FirstOrDefault(position => ReferenceEquals(position.Article, anchor.Article));
-                    }
-                    if (newPosition.Article is not null)
-                    {
-                        scrollViewer.ScrollToVerticalOffset(scrollViewer.VerticalOffset + newPosition.Top - anchor.Top);
-                    }
-                }
-            }
-            else
-            {
-                UpdateLibraryCounts();
-            }
+            UpdateLibraryCounts();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -3028,6 +3077,10 @@ public partial class MainWindow : Window
                 _library.MarkPlayed(article);
             }
 
+            foreach (var article in selected)
+            {
+                _deferredUnreadFilterPaths.Remove(article.FilePath);
+            }
             UpdateCurrentState();
             UpdateFilter();
             StatusText.Text = $"Marked {selected.Count} article(s) as read.";
@@ -3712,6 +3765,7 @@ public partial class MainWindow : Window
             return;
         }
 
+        _deferredUnreadFilterPaths.Remove(article.FilePath);
         if (article.IsPlayed)
         {
             _library.MarkUnplayed(article);
@@ -3734,6 +3788,7 @@ public partial class MainWindow : Window
             return;
         }
 
+        _deferredUnreadFilterPaths.Remove(_currentArticle.FilePath);
         if (_currentArticle.IsPlayed)
         {
             _library.MarkUnplayed(_currentArticle);
@@ -3897,6 +3952,10 @@ public partial class MainWindow : Window
         var completedArticle = _currentArticle;
         if (!_settings.MarkOnStart && _playbackStarted && completedArticle is not null)
         {
+            if (!completedArticle.IsPlayed)
+            {
+                DeferUnreadFiltering(completedArticle);
+            }
             _library.MarkPlayed(completedArticle);
         }
         PositionSlider.Value = scanMode ? 0 : PositionSlider.Maximum;
@@ -4080,9 +4139,9 @@ public partial class MainWindow : Window
     {
         if (_settings.MarkOnStart && _currentArticle is not null && !_currentArticle.IsPlayed)
         {
+            DeferUnreadFiltering(_currentArticle);
             _library.MarkPlayed(_currentArticle);
             UpdateCurrentState();
-            UpdateFilter();
         }
     }
 
@@ -4090,9 +4149,17 @@ public partial class MainWindow : Window
     {
         if (!_settings.MarkOnStart && _currentArticle is not null && !_currentArticle.IsPlayed)
         {
+            DeferUnreadFiltering(_currentArticle);
             _library.MarkPlayed(_currentArticle);
             UpdateCurrentState();
-            UpdateFilter();
+        }
+    }
+
+    private void DeferUnreadFiltering(ArticleAudio article)
+    {
+        if (UnplayedOnlyMenuItem.IsChecked && ArticleList.Items.Contains(article))
+        {
+            _deferredUnreadFilterPaths.Add(article.FilePath);
         }
     }
 
@@ -4171,13 +4238,16 @@ public partial class MainWindow : Window
         }
 
         view.Filter = item => item is ArticleAudio article &&
-            (!UnplayedOnlyMenuItem.IsChecked || !article.IsPlayed || article.IsStarred) &&
+            (!UnplayedOnlyMenuItem.IsChecked || !article.IsPlayed || article.IsStarred ||
+             _deferredUnreadFilterPaths.Contains(article.FilePath)) &&
             (!StarredOnlyMenuItem.IsChecked || article.IsStarred) &&
             (!FavoriteCategoriesOnlyMenuItem.IsChecked || article.IsFavoriteCategory) &&
-            (_selectedFeedCategories.Count == 0 || _selectedFeedCategories.Any(selection =>
-                selection.FeedIdentity.Equals(GetFeedIdentity(article), StringComparison.OrdinalIgnoreCase) &&
-                (selection.Category is null || article.Categories.Any(category =>
-                    category.Equals(selection.Category, StringComparison.OrdinalIgnoreCase))))) &&
+            (_selectedFeedCategories.Count == 0 && _selectedFeedGroups.Count == 0 ||
+             _selectedFeedCategories.Any(selection =>
+                 selection.FeedIdentity.Equals(GetFeedIdentity(article), StringComparison.OrdinalIgnoreCase) &&
+                 (selection.Category is null || article.Categories.Any(category =>
+                     category.Equals(selection.Category, StringComparison.OrdinalIgnoreCase)))) ||
+             _selectedFeedGroups.Contains(GetConfiguredFeedGroup(article), StringComparer.OrdinalIgnoreCase)) &&
             (_navigationMode != NavigationMode.Starred || article.IsStarred) &&
             (_navigationMode != NavigationMode.Favorites || article.IsFavoriteCategory) &&
             (_navigationMode != NavigationMode.History || article.LastActivityAt.HasValue) &&
@@ -4666,8 +4736,10 @@ public partial class MainWindow : Window
         }
 
         var articles = GetTickerArticles();
-        if (articles.Count == 0 && _tickerWindow?.IsVisible != true)
+        if (articles.Count == 0)
         {
+            _tickerWindow?.SetArticles(articles);
+            _tickerWindow?.Hide();
             return;
         }
 
@@ -4848,6 +4920,7 @@ public partial class MainWindow : Window
             if (!delete)
             {
                 _library.MarkPlayed(target);
+                _deferredUnreadFilterPaths.Remove(target.FilePath);
                 UpdateFilter();
                 return;
             }

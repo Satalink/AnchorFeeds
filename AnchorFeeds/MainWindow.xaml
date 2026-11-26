@@ -36,7 +36,7 @@
 
         <Grid x:Name="ArticleLayoutGrid" Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition x:Name="NavigationPaneColumn" Width="240" MinWidth="34" />
+                <ColumnDefinition x:Name="NavigationPaneColumn" Width="240" MinWidth="27.2" />
                 <ColumnDefinition x:Name="NavigationPaneSplitterColumn" Width="6" />
                 <ColumnDefinition x:Name="ArticleListColumn" Width="2*" MinWidth="330" />
                 <ColumnDefinition Width="6" />
@@ -109,7 +109,7 @@
                         </StackPanel>
                         <Border DockPanel.Dock="Top" Height="1" Margin="2,0,2,6"
                                 Background="{DynamicResource BorderBrush}" />
-                        <TextBlock DockPanel.Dock="Top" Text="Ctrl-click feeds/categories to combine filters"
+                        <TextBlock DockPanel.Dock="Top" Text="Ctrl-click groups, feeds, or categories to combine filters"
                                    Margin="4,0,4,5" FontSize="11"
                                    Foreground="{DynamicResource TextSecondaryBrush}"
                                    TextWrapping="Wrap" />
@@ -139,9 +139,9 @@
                             <StackPanel x:Name="NavigationTreeItems" />
                         </ScrollViewer>
                     </DockPanel>
-                    <Button x:Name="ExpandNavigationPaneButton" Width="30"
-                            HorizontalAlignment="Left" VerticalAlignment="Stretch"
-                            Padding="4" Click="ExpandNavigationPaneButton_Click"
+                    <Button x:Name="ExpandNavigationPaneButton" Width="23.2"
+                            HorizontalAlignment="Center" VerticalAlignment="Stretch"
+                            Padding="2,4" Click="ExpandNavigationPaneButton_Click"
                             ToolTip="Expand navigation pane"
                             AutomationProperties.Name="Expand navigation pane"
                             Visibility="Collapsed">
