@@ -28,7 +28,7 @@ AnchorFeeds is a Windows desktop app that turns RSS and Atom feeds into a person
 ### Option 1: MSI installer (easiest)
 
 1. Install the requirements above (`edge-tts` and FFmpeg).
-2. Download [`AnchorFeeds-Setup.msi`](AnchorFeeds-Setup.msi) from the repository root and run it. No .NET SDK or command line is needed.
+2. Download [`AnchorFeeds-Setup.msi`](AnchorFeeds-Setup.msi) from the repository root (or the latest GitHub Release) and run it. Click **Install**, then leave **Launch AnchorFeeds** checked. No .NET SDK or command line is needed.
 3. Start **AnchorFeeds** from the Start Menu.
 
 The MSI installs per user to `%LocalAppData%\Programs\AnchorFeeds`, adds a Start Menu shortcut, and keeps your `settings.yaml` when you upgrade.
@@ -47,7 +47,7 @@ dotnet publish .\AnchorFeeds\AnchorFeeds.csproj -c Release -r win-x64 --self-con
 
 A Release publish also builds the MSI and copies it to the repository root as `AnchorFeeds-Setup.msi`. Add `-p:BuildInstaller=false` to skip it. The published executable needs `settings.yaml` beside it.
 
-In VS Code, **Ctrl+Shift+B** publishes without the MSI and **Alt+Shift+B** publishes with it.
+In VS Code, **Ctrl+Shift+B** publishes without the MSI. **Alt+Shift+B** prompts for a version, builds the MSI, commits the version bump, pushes, and publishes a GitHub release (requires the `gh` CLI, signed in).
 
 ## Quick start
 
@@ -71,7 +71,6 @@ In VS Code, **Ctrl+Shift+B** publishes without the MSI and **Alt+Shift+B** publi
 - Opening an article in a browser skips auto-advance once when that article finishes.
 - The divider between the article list and player can be dragged. When both image and text are visible, their horizontal divider can also be dragged.
 - Starred articles can be set from the list or the player. Share buttons beside the progress bar open the article in X, Facebook or your default email app using share links (no API access needed).
-- Playback runs at normal speed. Older `playback_speed` values are ignored.
 - **Media buttons:** AnchorFeeds publishes the current article to the Windows media session, so headphone or keyboard Play/Pause, Previous and Next work in the background. Windows may route them to another app that owns the active media session.
 
 ### Feed Library
@@ -125,7 +124,7 @@ Focus a shortcut field in **Settings > Interface** and press the desired combina
 | Ctrl+Shift+A | Mark all as read |
 | O | Open Settings |
 
-When an article has more than one image/video, Right and Left first step through the carousel; once at that end (or with a single media item) they skip the audio. Settings saved with the old arrow defaults are migrated automatically.
+When an article has more than one image/video, Right and Left first step through the carousel; once at that end (or with a single media item) they skip the audio.
 
 ## Settings
 
@@ -135,6 +134,7 @@ Open **Settings** with the cog. Each option has a clickable **(?)** help button 
 
 - **Application Language / Locale:** defaults to **System default** (the Windows display language at startup). Available: English, Czech, German, Spanish, French, Italian, Japanese, Korean, Polish, Brazilian Portuguese, Russian, Turkish, Simplified Chinese and Traditional Chinese. Stored as `application_language`.
 - **Retrieve latest feeds on application launch:** on by default.
+- **Check for application updates:** on by default. At startup (when the window is visible) AnchorFeeds checks the latest GitHub release; if it is newer than the running version, it offers to download and install `AnchorFeeds-Setup.msi`, then closes, updates and restarts. Stored as `check_for_updates`.
 - **Feed update polling interval:** defaults to **Manual only**; feeds set to **Use global interval** inherit it.
 - **Launch at startup:** starts AnchorFeeds at Windows sign-in (synchronized with the current user's Run registry key).
 - **Minimize to tray / Close to tray:** hide the window when minimized or closed. With launch at startup and minimize to tray both on, the app starts hidden. Right-clicking the title-bar Close button always exits. The tray icon offers Open and Exit.
@@ -153,11 +153,11 @@ Open **Settings** with the cog. Each option has a clickable **(?)** help button 
 - Configure each RSS/Atom source independently: name, link, group/category, and update period. Each feed can inherit the global interval, use a fixed interval, or be **Manual only**. Manual **Update Feeds** checks every source.
 - Favorite and blocked categories are managed per feed from article context menus and the feed properties gear.
 - Banned, favorite and starred words and phrases are edited here.
-- Existing URL-only `feeds` entries are migrated to records named by URL host in the **Other / Uncategorized** group. Structured settings live in `feed_sources`.
+- Structured feed settings are stored in `feed_sources`.
 
 ### Audio
 
-- **Voices:** grouped by language and country, with the system locale expanded first. Select several with their checkboxes and preview with **Sample** (it spins while generating and highlights while playing). New articles rotate through the selected voices; if edge-tts returns no audio, the other selected voices are tried before failing. With none configured, the app defaults to Guy and Jenny for en-US, or one female and one male voice for the system locale (falling back to the system language), a practical rather than popularity-based default. Older `anchor_1`, `anchor_2`, `anchor_1_voices` and `anchor_2_voices` settings are migrated to `anchor_voices` on next save.
+- **Voices:** grouped by language and country, with the system locale expanded first. Select several with their checkboxes and preview with **Sample** (it spins while generating and highlights while playing). New articles rotate through the selected voices; if edge-tts returns no audio, the other selected voices are tried before failing. With none configured, the app defaults to Guy and Jenny for en-US, or one female and one male voice for the system locale (falling back to the system language), a practical rather than popularity-based default.
 - **MP3 bitrate:** **Default** and 48 kbps use Edge TTS's native 24 kHz mono output without FFmpeg. 96, 128, 160, 192, 256 and 320 kbps re-encode new files with FFmpeg.
 - **Scan mode countdown**, **Auto Play Next** (default `true`) and the mark-as-played rule.
 - **Retention:** general audio retention plus separate **Prune Starred** and **Prune Favorites** periods. Enter `never` (default) or a duration such as `12 hours`, `3 days` or `2 weeks`. Favorites include favorite feed categories and phrases. When an article is both starred and favorite the longer period applies, and `never` wins. Expiration uses the audio file's creation time (or the article folder's when generation failed) and runs on library load, refresh, or manual pruning. Saving settings can prune immediately; manual pruning uses the last saved settings.
@@ -172,15 +172,14 @@ Open **Settings** with the cog. Each option has a clickable **(?)** help button 
 ## How feed updates work
 
 - Each update processes up to **100 new articles per feed**, oldest first, and resumes any remaining backlog on a later update. This cap bounds feed and Edge TTS work.
-- Feed item cursors and last successful check times are stored in `%LOCALAPPDATA%\anchorfeeds\feed-update-state.json`, separate from settings. Existing library metadata seeds the cursors when the file is first created. Items at or before a feed's cursor are skipped without checking audio files or reporting per-item skips.
+- Feed item cursors and last successful check times are stored in `%LOCALAPPDATA%\anchorfeeds\feed-update-state.json`, separate from settings. Items at or before a feed's cursor are skipped without checking audio files or reporting per-item skips.
 - Scheduled updates continue while the app is minimized or in the notification area. Due feeds are checked about every 10 seconds, each on its own interval; manual-only feeds are never polled automatically. A failed feed is retried after its interval. The computer must be awake and the app running.
 
 ## Media and article content
 
 - Each article gets a folder named `{feed}_{title}` (sanitized slugs) in the media output directory containing `title.mp3`, `body.mp3` and the cached article image when available. Temporary generation files go in a `.tmp` subfolder, created when generation runs.
-- Existing article folders stay in place after upgrades. Existing flat MP3s are moved into their article folder when their feed entry is retrieved, keeping played/starred state.
 - Body narration uses the same filtered, visible text as Article Text, without repeating the title. Article Text keeps supported feed formatting (headings, lists, emphasis, selected inline font styles); links and their text are omitted from display and narration. If formatted content is unavailable, the saved plain text is used.
-- Older articles keep their existing audio until rebuilt. When the body text equals the title, body playback is suppressed as duplicate narration but formatted text remains visible. MP3 file sizes are never used to detect duplicates.
+- When the body text equals the title, body playback is suppressed as duplicate narration but formatted text remains visible. MP3 file sizes are never used to detect duplicates.
 
 ## Where settings and data live
 

@@ -190,6 +190,10 @@
                         <CheckBox x:Name="RetrieveLatestFeedsOnLaunchCheckBox"
                                   Content="Retrieve latest feeds on application launch"
                                   IsChecked="True" Margin="0,12,0,4" />
+                        <CheckBox x:Name="CheckForUpdatesCheckBox"
+                                  Content="Check for application updates"
+                                  IsChecked="True" Margin="0,4"
+                                  ToolTip="Check GitHub for a newer AnchorFeeds release when the app starts, and offer to install it." />
                         <TextBlock Text="Feed update polling interval" FontWeight="SemiBold" Margin="0,12,0,0" />
                         <ComboBox x:Name="FeedUpdateIntervalComboBox" Margin="0,4,0,4">
                             <ComboBoxItem Content="Manual only" />

@@ -30,7 +30,7 @@
       "presentation": { "reveal": "always", "panel": "shared" }
           },
           {
-            "label": "Publish AnchorFeeds + MSI (Release, single file)",
+            "label": "Publish AnchorFeeds Release (version prompt, MSI, GitHub release)",
             "type": "shell",
             "options": {
               "shell": {
@@ -38,10 +38,18 @@
                 "args": ["-NoProfile", "-Command"]
               }
             },
-            "command": "$projectBin = '${workspaceFolder}\\AnchorFeeds\\bin'; Get-Process -Name AnchorFeeds -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($projectBin, [StringComparison]::OrdinalIgnoreCase) } | ForEach-Object { Stop-Process -Id $_.Id -Force }; dotnet publish \"${workspaceFolder}\\AnchorFeeds\\AnchorFeeds.csproj\" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true",
+            "command": "& '${workspaceFolder}\\scripts\\Publish-Release.ps1' -Version '${input:releaseVersion}'",
             "group": "build",
             "problemMatcher": "$msCompile",
             "presentation": { "reveal": "always", "panel": "shared" }
     }
+  ],
+  "inputs": [
+          {
+            "id": "releaseVersion",
+            "type": "promptString",
+            "description": "Release version (e.g. 1.0.1). Builds the MSI, commits, pushes and publishes a GitHub release.",
+            "default": "1.0.1"
+          }
   ]
 }

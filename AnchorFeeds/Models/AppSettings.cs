@@ -100,6 +100,9 @@ public sealed class AppSettings
     [YamlMember(Alias = "launch_at_startup")]
     public bool LaunchAtStartup { get; set; } = true;
 
+    [YamlMember(Alias = "check_for_updates")]
+    public bool CheckForUpdates { get; set; } = true;
+
     [YamlMember(Alias = "debug_logging")]
     public bool DebugLoggingEnabled { get; set; }
 

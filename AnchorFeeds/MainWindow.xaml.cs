@@ -611,9 +611,49 @@ public partial class MainWindow : Window
             UpdateArticleMediaLayout();
         }
 
+        if (_settings.CheckForUpdates && !StartMinimizedToTray)
+        {
+            _ = CheckForApplicationUpdateAsync();
+        }
+
         if (_settings.RetrieveLatestFeedsOnLaunch)
         {
             await RetrieveLatestFeedsAsync();
+        }
+    }
+
+    private async Task CheckForApplicationUpdateAsync()
+    {
+        try
+        {
+            var update = await AppUpdateService.CheckForUpdateAsync();
+            if (update is null)
+            {
+                return;
+            }
+
+            var answer = MessageBox.Show(
+                this,
+                $"AnchorFeeds {update.Tag} is available (you have {AppUpdateService.CurrentVersion}).\n\nDownload and install it now? AnchorFeeds will close while it updates and restart afterwards.",
+                "Update available",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Information);
+            if (answer != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            StatusText.Text = $"Downloading AnchorFeeds {update.Tag}...";
+            var installerPath = await AppUpdateService.DownloadInstallerAsync(update);
+            Process.Start(new ProcessStartInfo("msiexec.exe", $"/i \"{installerPath}\" /passive LAUNCHAFTERINSTALL=1")
+            {
+                UseShellExecute = true
+            });
+            ExitFromTray();
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLog.Exception("Update check failed", ex);
         }
     }
 

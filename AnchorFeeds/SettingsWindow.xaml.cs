@@ -158,6 +158,7 @@ public partial class SettingsWindow : Window
         MinimizeToTrayCheckBox.IsChecked = settings.MinimizeToTray;
         CloseToTrayCheckBox.IsChecked = settings.CloseToTray;
         LaunchAtStartupCheckBox.IsChecked = settings.LaunchAtStartup;
+        CheckForUpdatesCheckBox.IsChecked = settings.CheckForUpdates;
         DebugLoggingCheckBox.IsChecked = settings.DebugLoggingEnabled;
         ShowArticleTextCheckBox.IsChecked = settings.ShowArticleText;
         ShowUnplayedOnlyCheckBox.IsChecked = settings.ShowUnplayedOnly;
@@ -552,6 +553,7 @@ public partial class SettingsWindow : Window
                 MinimizeToTray = MinimizeToTrayCheckBox.IsChecked.GetValueOrDefault(),
                 CloseToTray = CloseToTrayCheckBox.IsChecked.GetValueOrDefault(),
                 LaunchAtStartup = LaunchAtStartupCheckBox.IsChecked.GetValueOrDefault(),
+                CheckForUpdates = CheckForUpdatesCheckBox.IsChecked.GetValueOrDefault(),
                 DebugLoggingEnabled = DebugLoggingCheckBox.IsChecked.GetValueOrDefault(),
                 ShowArticleText = ShowArticleTextCheckBox.IsChecked.GetValueOrDefault(),
                 ShowUnplayedOnly = ShowUnplayedOnlyCheckBox.IsChecked.GetValueOrDefault(),
