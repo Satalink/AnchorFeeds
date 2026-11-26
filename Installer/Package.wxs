@@ -1,0 +1,41 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="AnchorFeeds" Manufacturer="Satalink" Version="$(ProductVersion)"
+           UpgradeCode="6B0F2C1E-7A53-4E0B-9C57-3D8E1A4F92B6" Scope="perUser" Compressed="yes">
+    <MajorUpgrade DowngradeErrorMessage="A newer version of AnchorFeeds is already installed."
+                  Schedule="afterInstallExecute" />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="AnchorFeedsIcon" SourceFile="..\AnchorFeeds\Assets\AnchorFeeds.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AnchorFeedsIcon" />
+
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="ProgramsFolder" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="AnchorFeeds" />
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder" />
+
+    <!-- The app reads and writes settings.yaml, audio and logs beside the exe, so it installs per user. -->
+    <Feature Id="Main" Title="AnchorFeeds" Level="1">
+      <Component Id="MainExecutable" Directory="INSTALLFOLDER">
+        <File Id="AnchorFeedsExe" Source="$(AppPublishDir)\AnchorFeeds.exe" KeyPath="yes">
+          <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="AnchorFeeds"
+                    WorkingDirectory="INSTALLFOLDER" Advertise="no" Icon="AnchorFeedsIcon" />
+        </File>
+        <RemoveFolder Id="RemoveInstallFolder" Directory="INSTALLFOLDER" On="uninstall" />
+      </Component>
+
+      <!-- Kept on upgrade so users do not lose their feeds and preferences. -->
+      <Component Id="DefaultSettings" Directory="INSTALLFOLDER" Guid="B3D7A1F4-52C8-4E69-A0D1-8F6E2C9B7A35"
+                 NeverOverwrite="yes">
+        <File Id="SettingsYaml" Source="settings.yaml" KeyPath="yes" />
+      </Component>
+
+      <Files Include="$(AppPublishDir)\**">
+        <Exclude Files="$(AppPublishDir)\AnchorFeeds.exe" />
+        <Exclude Files="$(AppPublishDir)\settings.yaml" />
+        <Exclude Files="$(AppPublishDir)\*.pdb" />
+      </Files>
+    </Feature>
+  </Package>
+</Wix>

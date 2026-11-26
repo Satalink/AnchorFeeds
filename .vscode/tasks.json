@@ -24,10 +24,24 @@
           "args": ["-NoProfile", "-Command"]
         }
       },
-      "command": "$projectBin = '${workspaceFolder}\\AnchorFeeds\\bin'; Get-Process -Name AnchorFeeds -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($projectBin, [StringComparison]::OrdinalIgnoreCase) } | ForEach-Object { Stop-Process -Id $_.Id -Force }; dotnet publish \"${workspaceFolder}\\AnchorFeeds\\AnchorFeeds.csproj\" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true",
+      "command": "$projectBin = '${workspaceFolder}\\AnchorFeeds\\bin'; Get-Process -Name AnchorFeeds -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($projectBin, [StringComparison]::OrdinalIgnoreCase) } | ForEach-Object { Stop-Process -Id $_.Id -Force }; dotnet publish \"${workspaceFolder}\\AnchorFeeds\\AnchorFeeds.csproj\" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true       -p:IncludeNativeLibrariesForSelfExtract=true -p:BuildInstaller=false",
       "group": { "kind": "build", "isDefault": true },
       "problemMatcher": "$msCompile",
       "presentation": { "reveal": "always", "panel": "shared" }
+          },
+          {
+            "label": "Publish AnchorFeeds + MSI (Release, single file)",
+            "type": "shell",
+            "options": {
+              "shell": {
+                "executable": "powershell.exe",
+                "args": ["-NoProfile", "-Command"]
+              }
+            },
+            "command": "$projectBin = '${workspaceFolder}\\AnchorFeeds\\bin'; Get-Process -Name AnchorFeeds -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($projectBin, [StringComparison]::OrdinalIgnoreCase) } | ForEach-Object { Stop-Process -Id $_.Id -Force }; dotnet publish \"${workspaceFolder}\\AnchorFeeds\\AnchorFeeds.csproj\" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true",
+            "group": "build",
+            "problemMatcher": "$msCompile",
+            "presentation": { "reveal": "always", "panel": "shared" }
     }
   ]
 }

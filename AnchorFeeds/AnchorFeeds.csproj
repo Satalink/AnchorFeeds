@@ -7,6 +7,7 @@
     <AssemblyTitle>AnchorFeeds</AssemblyTitle>
     <Product>AnchorFeeds</Product>
     <Company>Satalink</Company>
+    <Version>1.0.0</Version>
     <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <ApplicationIcon>Assets\AnchorFeeds.ico</ApplicationIcon>
     <Nullable>enable</Nullable>
@@ -34,5 +35,18 @@
     <Resource Include="Assets\page-flip.wav" />
     <Content Include="Assets\AnchorFeeds_splash.mp4" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
+
+  <!-- Release publishes also produce AnchorFeeds-Setup.msi at the repository root. Pass -p:BuildInstaller=false to skip. -->
+  <Target Name="BuildInstaller" AfterTargets="Publish"
+          Condition="'$(Configuration)' == 'Release' and '$(BuildInstaller)' != 'false'">
+    <PropertyGroup>
+      <InstallerProject>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\Installer\AnchorFeeds.Installer.wixproj'))</InstallerProject>
+      <InstallerPublishDir>$([System.IO.Path]::GetFullPath('$(PublishDir)').TrimEnd('\'))</InstallerPublishDir>
+      <InstallerOutputDir>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\Installer\bin'))</InstallerOutputDir>
+    </PropertyGroup>
+    <Exec Command="dotnet build &quot;$(InstallerProject)&quot; -c Release -p:AppPublishDir=&quot;$(InstallerPublishDir)&quot; -p:ProductVersion=$(Version)" />
+    <Copy SourceFiles="$(InstallerOutputDir)\x64\Release\AnchorFeeds-Setup.msi"
+          DestinationFolder="$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..'))" />
+  </Target>
 
 </Project>

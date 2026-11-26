@@ -4,6 +4,12 @@ Feed updates process new items oldest-first, with a built-in safety cap of 100 n
 
 AnchorFeeds is a Windows WPF application that generates text to speech audio files per RSS or Atom article, displays feed images and article text, shows YouTube thumbnails with a browser-open video button, opens source articles in a browser, plays generated audio, and remembers played and starred articles. The application icon and startup logo use the AnchorFeeds image in `AnchorFeeds/Assets`; the standalone executable includes 32, 64, 128, and 256 pixel icon images.
 
+## Install (easy)
+
+Download [`AnchorFeeds-Setup.msi`](AnchorFeeds-Setup.msi) from the repository root and run it. No .NET SDK or command line is needed. It installs per user to `%LocalAppData%\Programs\AnchorFeeds`, adds a Start Menu shortcut, and keeps your `settings.yaml` on upgrade. Audio generation still requires `edge-tts` and FFmpeg on `PATH`.
+
+The MSI is rebuilt and copied to the repository root by every Release publish (the command below); add `-p:BuildInstaller=false` to skip it.
+
 ## Run from source
 
 Install the .NET 10 SDK and the `edge-tts` command, then run:
