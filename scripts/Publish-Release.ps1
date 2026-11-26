@@ -15,7 +15,24 @@ if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw "Version '$Version' must look 
 
 $tag = "v$Version"
 if (git tag --list $tag) { throw "Tag $tag already exists." }
-if (gh release view $tag 2>$null) { throw "Release $tag already exists on GitHub." }
+$repo = gh repo view --json nameWithOwner --jq .nameWithOwner
+if ($LASTEXITCODE -ne 0 -or -not $repo) { throw 'Could not determine the GitHub repository.' }
+
+$previousErrorActionPreference = $ErrorActionPreference
+try {
+    # Windows PowerShell treats native stderr as an error even when it is redirected.
+    $ErrorActionPreference = 'Continue'
+    $releaseResponse = @(& gh api --include "repos/$repo/releases/tags/$tag" 2>&1)
+    $releaseExitCode = $LASTEXITCODE
+}
+finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+}
+
+if ($releaseExitCode -eq 0) { throw "Release $tag already exists on GitHub." }
+if (-not ($releaseResponse | Where-Object { "$_" -match '^HTTP/\S+\s+404(?:\s|$)' })) {
+    throw "Could not check for release $tag on GitHub:`n$($releaseResponse -join "`n")"
+}
 
 Get-Process -Name AnchorFeeds -ErrorAction SilentlyContinue |
     Where-Object { $_.Path -and $_.Path.StartsWith((Join-Path $root 'AnchorFeeds\bin'), [StringComparison]::OrdinalIgnoreCase) } |
