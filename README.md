@@ -28,9 +28,9 @@ AnchorFeeds is a Windows desktop app that turns RSS and Atom feeds into a person
 ## Installation
 
 ### Option 1: MSI installer (easiest)
-
+ 
 1. Install the requirements above (`edge-tts` and FFmpeg).
-2. Download [`AnchorFeeds-Setup.msi`](AnchorFeeds-Setup.msi) from the repository root (or the latest GitHub Release) and run it. Click **Install**, then leave **Launch AnchorFeeds** checked. No .NET SDK or command line is needed.
+2. Download [`AnchorFeeds-Setup.msi`](https://github.com/Satalink/AnchorFeeds/releases/latest) from the repository root (or the latest GitHub Release) and run it. Click **Install**, then leave **Launch AnchorFeeds** checked. No .NET SDK or command line is needed.
 3. Start **AnchorFeeds** from the Start Menu.
 
 The MSI installs per user to `%LocalAppData%\Programs\AnchorFeeds`, adds a Start Menu shortcut, and keeps your `settings.yaml` when you upgrade.
